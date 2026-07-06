@@ -1,0 +1,544 @@
+/* ============================================================
+   BrainstormHub — 三欄佈局
+   左: 圖片上傳區 (280px)
+   中: AI 聊天區 (flex)
+   右: 主題列表 (280px)
+   ============================================================ */
+
+.brainstorm-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  height: 100%;
+  gap: 0;
+}
+
+/* ─── 左側：圖片上傳區 ─── */
+.brainstorm-images-panel {
+  border-right: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-color);
+}
+
+.panel-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.panel-header h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-header p {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.images-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 拖放上傳區 */
+.brainstorm-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+  border: 2px dashed var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+  gap: 10px;
+  text-align: center;
+  transition: all 0.25s ease;
+  min-height: 120px;
+}
+
+.brainstorm-drop-zone:hover,
+.brainstorm-drop-zone.drag-over {
+  border-color: var(--accent-color);
+  background: var(--accent-glow);
+}
+
+.brainstorm-drop-zone .drop-icon {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.brainstorm-drop-zone .drop-text {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.brainstorm-drop-zone .drop-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+/* 已上傳圖片網格 */
+.uploaded-images-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.uploaded-img-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.uploaded-img-item:hover {
+  border-color: var(--accent-color);
+}
+
+.uploaded-img-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.uploaded-img-item .remove-img-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  font-size: 0;
+}
+
+.uploaded-img-item:hover .remove-img-btn {
+  opacity: 1;
+}
+
+/* 發想按鈕 */
+.inspire-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 0.9rem;
+  gap: 8px;
+  border-radius: 8px;
+}
+
+.inspire-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* ─── 中間：聊天區 ─── */
+.brainstorm-chat-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-color);
+}
+
+.brainstorm-chat-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.brainstorm-chat-header .topic-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brainstorm-chat-header .topic-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.topic-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.topic-action-btn {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--secondary-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text-primary);
+  transition: all 0.2s;
+}
+
+.topic-action-btn:hover {
+  background: var(--secondary-hover);
+}
+
+/* 聊天訊息中的圖片 */
+.message-images {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.message-images img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.message-images img:hover {
+  transform: scale(1.05);
+}
+
+/* ─── 右側：主題列表 ─── */
+.brainstorm-topics-panel {
+  border-left: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-color);
+}
+
+.topics-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.new-topic-btn {
+  margin: 12px;
+  padding: 10px;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* 主題卡片 */
+.topic-card {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--panel-bg);
+}
+
+.topic-card:hover {
+  border-color: var(--accent-color);
+  background: var(--secondary-bg);
+}
+
+.topic-card.active {
+  border-color: var(--accent-color);
+  background: var(--accent-glow);
+}
+
+.topic-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.topic-card-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.4;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.topic-card-delete {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: all 0.2s;
+}
+
+.topic-card:hover .topic-card-delete {
+  opacity: 1;
+}
+
+.topic-card-delete:hover {
+  color: var(--danger-color);
+  background: var(--secondary-bg);
+}
+
+.topic-card-date {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.topic-card-thumbs {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.topic-card-thumbs img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--panel-border);
+}
+
+.topic-card-sequel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  padding: 2px 6px;
+  background: var(--secondary-bg);
+  border-radius: 4px;
+  width: fit-content;
+}
+
+/* 空主題狀態 */
+.topics-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.topics-empty .empty-icon {
+  font-size: 2.5rem;
+  opacity: 0.3;
+}
+
+.topics-empty p {
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* ─── 對話名稱編輯 ─── */
+.topic-name-input {
+  font-size: 1.1rem;
+  font-weight: 600;
+  background: var(--input-bg);
+  border: 1px solid var(--accent-color);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  width: 300px;
+}
+
+/* ─── 圖片燈箱 ─── */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: pointer;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.lightbox-overlay img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── Markdown 渲染樣式 ─── */
+.markdown-body {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.markdown-body h1 { font-size: 1.3rem; }
+.markdown-body h2 { font-size: 1.15rem; }
+.markdown-body h3 { font-size: 1.05rem; }
+.markdown-body h4 { font-size: 0.95rem; }
+
+.markdown-body h1:first-child,
+.markdown-body h2:first-child,
+.markdown-body h3:first-child {
+  margin-top: 0;
+}
+
+.markdown-body p {
+  margin: 8px 0;
+}
+
+.markdown-body p:first-child {
+  margin-top: 0;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.markdown-body em {
+  font-style: italic;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.markdown-body li {
+  margin: 4px 0;
+}
+
+.markdown-body li > ul,
+.markdown-body li > ol {
+  margin: 4px 0;
+}
+
+.markdown-body code {
+  background: var(--secondary-bg);
+  border: 1px solid var(--panel-border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-family: 'Fira Code', 'Consolas', monospace;
+}
+
+.markdown-body pre {
+  background: var(--secondary-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+.markdown-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--accent-color);
+  margin: 10px 0;
+  padding: 8px 16px;
+  color: var(--text-secondary);
+  background: var(--accent-glow);
+  border-radius: 0 6px 6px 0;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--panel-border);
+  margin: 16px 0;
+}
+
+.markdown-body a {
+  color: var(--accent-color);
+  text-decoration: underline;
+  text-decoration-color: var(--panel-border);
+  transition: text-decoration-color 0.2s;
+}
+
+.markdown-body a:hover {
+  text-decoration-color: var(--accent-color);
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0;
+  font-size: 0.85rem;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--panel-border);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--secondary-bg);
+  font-weight: 600;
+}
+
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+

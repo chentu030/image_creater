@@ -1,0 +1,28 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/replicate/:path*",
+      "destination": "https://api.replicate.com/v1/:path*"
+    },
+    {
+      "source": "/api/vertex-v1/:path*",
+      "destination": "https://aiplatform.googleapis.com/v1/:path*"
+    },
+    {
+      "source": "/api/vertex/:path*",
+      "destination": "https://aiplatform.googleapis.com/v1beta1/:path*"
+    },
+    {
+      "source": "/api/piapi/:path*",
+      "destination": "https://api.piapi.ai/:path*"
+    },
+    {
+      "source": "/api/kie-file/:path*",
+      "destination": "https://kieai.redpandaai.co/:path*"
+    },
+    {
+      "source": "/api/kie-task/:path*",
+      "destination": "https://api.kie.ai/:path*"
+    }
+  ]
+}
