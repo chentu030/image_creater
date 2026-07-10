@@ -126,7 +126,7 @@ export default function HistoryGallery() {
                 {record.type === 'video' ? (
                   <video src={record.outputUrl} muted loop preload="metadata" className="history-thumb" />
                 ) : (
-                  <img src={record.outputUrl} alt={record.prompt} className="history-thumb" loading="lazy" />
+                  <img src={record.thumbnailUrl || record.outputUrl} alt={record.prompt} className="history-thumb" loading="lazy" />
                 )}
                 <div className="history-card-type-badge">
                   {record.type === 'video' ? <Film size={12}/> : <ImageIcon size={12}/>}

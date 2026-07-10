@@ -250,12 +250,13 @@ export default function StyleLab() {
       if (uid && isFirebaseConfigured()) {
         (async () => {
           try {
-            const storageUrl = await uploadGeneratedToStorage(uid, result.output, 'image');
+            const { url: storageUrl, thumbnailUrl } = await uploadGeneratedToStorage(uid, result.output, 'image');
             await saveGenerationRecord(uid, {
               type: 'image',
               model: modelVersion,
               prompt,
               outputUrl: storageUrl,
+              thumbnailUrl: thumbnailUrl || null,
               aspectRatio,
               timestamp: new Date().toISOString()
             });

@@ -90,7 +90,7 @@ export default function AnimationStudio() {
       if (uid && isFirebaseConfigured()) {
         (async () => {
           try {
-            const storageUrl = await uploadGeneratedToStorage(uid, result.output, 'video');
+            const { url: storageUrl } = await uploadGeneratedToStorage(uid, result.output, 'video');
             await saveGenerationRecord(uid, {
               type: 'video',
               model,

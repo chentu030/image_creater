@@ -139,15 +139,36 @@ export async function uploadImageToStorage(uid, dataUrl, folder = 'reference-ima
 }
 
 /**
+ * 將圖片 URL 或 data URL 轉為縮圖 data URL
+ */
+function createThumbnail(src, maxWidth = 300, quality = 0.6) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ratio = Math.min(maxWidth / img.width, maxWidth / img.height, 1);
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+/**
  * 上傳生成結果（圖片或影片 URL）到 Firebase Storage
  * 如果是 data URL，直接上傳；如果是遠端 URL，先下載再上傳
- * @returns {string} Firebase Storage 下載 URL
+ * 圖片會同時生成縮圖
+ * @returns {{ url: string, thumbnailUrl?: string }}
  */
 export async function uploadGeneratedToStorage(uid, url, type = 'image') {
   if (!storage) throw new Error('Firebase Storage 未初始化');
   const ext = type === 'video' ? 'mp4' : 'png';
-  const fileName = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const path = `${getUserPath(uid)}/generated/${fileName}`;
+  const baseName = `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const path = `${getUserPath(uid)}/generated/${baseName}.${ext}`;
   const fileRef = storageRef(storage, path);
 
   if (url.startsWith('data:')) {
@@ -160,10 +181,29 @@ export async function uploadGeneratedToStorage(uid, url, type = 'image') {
       await uploadBytes(fileRef, blob);
     } catch (e) {
       console.warn('上傳生成結果到 Storage 失敗，跳過:', e);
-      return url; // fallback: 直接回傳原始 URL
+      return { url }; // fallback
     }
   }
-  return getDownloadURL(fileRef);
+
+  const fullUrl = await getDownloadURL(fileRef);
+
+  // 圖片才生成縮圖
+  let thumbnailUrl = null;
+  if (type === 'image') {
+    try {
+      const thumbDataUrl = await createThumbnail(url.startsWith('data:') ? url : fullUrl);
+      if (thumbDataUrl) {
+        const thumbPath = `${getUserPath(uid)}/generated/thumbs/${baseName}.jpg`;
+        const thumbRef = storageRef(storage, thumbPath);
+        await uploadString(thumbRef, thumbDataUrl, 'data_url');
+        thumbnailUrl = await getDownloadURL(thumbRef);
+      }
+    } catch (e) {
+      console.warn('縮圖生成失敗，跳過:', e);
+    }
+  }
+
+  return { url: fullUrl, thumbnailUrl };
 }
 
 /**
