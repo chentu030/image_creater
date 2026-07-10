@@ -48,23 +48,22 @@ export const generateImage = async (prompt, referenceImages = [], aspectRatio = 
       const promises = referenceImages.map(async (url) => {
         // 已經是 data URL → 直接用
         if (url.startsWith('data:')) return url;
-        // HTTP URL → 用 img + canvas 轉 base64（避免 CORS fetch 問題）
+        
+        // Firebase Storage URL → 走 proxy 避免 CORS
+        let fetchUrl = url;
+        if (url.includes('firebasestorage.googleapis.com')) {
+          fetchUrl = url.replace('https://firebasestorage.googleapis.com', '/api/firebase-storage');
+        }
+        
+        // 用 fetch 透過 proxy 取圖片
+        const res = await fetch(fetchUrl);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const blob = await res.blob();
         return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = img.naturalWidth;
-              canvas.height = img.naturalHeight;
-              canvas.getContext('2d').drawImage(img, 0, 0);
-              resolve(canvas.toDataURL('image/jpeg', 0.9));
-            } catch (e) {
-              reject(e);
-            }
-          };
-          img.onerror = () => reject(new Error('圖片載入失敗: ' + url));
-          img.src = url;
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
         });
       });
       imagesBase64 = await Promise.all(promises);

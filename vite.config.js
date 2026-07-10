@@ -148,6 +148,12 @@ export default defineConfig({
         target: 'https://api.x.ai',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/grok/, '')
+      },
+      // Firebase Storage (proxy for CORS)
+      '/api/firebase-storage': {
+        target: 'https://firebasestorage.googleapis.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/firebase-storage/, '')
       }
     }
   }

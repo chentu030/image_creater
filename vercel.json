@@ -35,6 +35,10 @@
     {
       "source": "/api/grok/:path*",
       "destination": "https://api.x.ai/:path*"
+    },
+    {
+      "source": "/api/firebase-storage/:path*",
+      "destination": "https://firebasestorage.googleapis.com/:path*"
     }
   ]
 }
