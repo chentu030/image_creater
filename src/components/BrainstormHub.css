@@ -592,3 +592,37 @@
 .chat-input-row .chat-input {
   flex: 1;
 }
+
+/* ─── 手機 RWD ─── */
+@media (max-width: 768px) {
+  .brainstorm-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .brainstorm-images-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .brainstorm-topics-panel {
+    border-left: none;
+    border-top: 1px solid var(--panel-border);
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .brainstorm-chat-panel {
+    min-height: 300px;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+  }
+
+  .chat-controls-row {
+    flex-wrap: wrap;
+  }
+}
