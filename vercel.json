@@ -23,6 +23,10 @@
     {
       "source": "/api/kie-task/:path*",
       "destination": "https://api.kie.ai/:path*"
+    },
+    {
+      "source": "/api/openai/:path*",
+      "destination": "https://api.openai.com/:path*"
     }
   ]
 }

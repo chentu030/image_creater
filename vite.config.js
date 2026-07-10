@@ -130,6 +130,12 @@ export default defineConfig({
         target: 'https://api.kie.ai',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/kie-task/, '')
+      },
+      // OpenAI API (gpt-image-2 生圖)
+      '/api/openai': {
+        target: 'https://api.openai.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/openai/, '')
       }
     }
   }

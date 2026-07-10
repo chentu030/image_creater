@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useAuth } from '../hooks/useAuth';
 import { ImagePlus, Sliders, Wand2, Download, Loader2, Check, Target, Smile, Upload, X } from 'lucide-react';
-import { generateImage, generateImagePiAPI, generateImageVertex, PIAPI_IMAGE_MODELS, VERTEX_IMAGE_MODELS } from '../services/api';
+import { generateImage, generateImagePiAPI, generateImageVertex, generateImageOpenAI, PIAPI_IMAGE_MODELS, VERTEX_IMAGE_MODELS, OPENAI_IMAGE_MODELS } from '../services/api';
 import {
   uploadImageToStorage,
   uploadGeneratedToStorage,
@@ -18,9 +18,11 @@ import './Workspace.css';
 const isPiAPIImageModel = (modelId) => PIAPI_IMAGE_MODELS.some(m => m.id === modelId);
 // 判斷是否為 Vertex (Google) 圖片模型
 const isVertexImageModel = (modelId) => VERTEX_IMAGE_MODELS.some(m => m.id === modelId);
+// 判斷是否為 OpenAI 圖片模型
+const isOpenAIImageModel = (modelId) => OPENAI_IMAGE_MODELS.some(m => m.id === modelId);
 
-// 目前可用的生圖模型 (Replicate + Vertex + PiAPI)
-const VALID_IMAGE_MODEL_IDS = ['bytedance/seedream-5-lite', 'bytedance/seedream-4.5', ...VERTEX_IMAGE_MODELS.map(m => m.id), ...PIAPI_IMAGE_MODELS.map(m => m.id)];
+// 目前可用的生圖模型 (Replicate + Vertex + PiAPI + OpenAI)
+const VALID_IMAGE_MODEL_IDS = ['bytedance/seedream-5-lite', 'bytedance/seedream-4.5', ...VERTEX_IMAGE_MODELS.map(m => m.id), ...PIAPI_IMAGE_MODELS.map(m => m.id), ...OPENAI_IMAGE_MODELS.map(m => m.id)];
 
 export default function StyleLab() {
   const { uid } = useAuth();
@@ -175,6 +177,9 @@ export default function StyleLab() {
       } else if (isVertexImageModel(modelVersion)) {
         // Google Vertex 生圖（支援風格參考圖 + 角色圖 + 迷因動作圖）
         result = await generateImageVertex(modelVersion, prompt, referenceImages, aspectRatio, keepPose, targetImage, memeImage);
+      } else if (isOpenAIImageModel(modelVersion)) {
+        // OpenAI GPT Image 2（支援參考圖編輯）
+        result = await generateImageOpenAI(prompt, referenceImages, aspectRatio);
       } else {
         // Replicate Seedream 模型（可帶入目標圖做風格轉繪）
         result = await generateImage(prompt, referenceImages, aspectRatio, keepPose, modelVersion, targetImage, memeImage);
@@ -479,6 +484,13 @@ export default function StyleLab() {
                 {PIAPI_IMAGE_MODELS.length > 0 && (
                   <optgroup label="── PiAPI ──">
                     {PIAPI_IMAGE_MODELS.map(m => (
+                      <option key={m.id} value={m.id}>{m.name} — {m.desc}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {OPENAI_IMAGE_MODELS.length > 0 && (
+                  <optgroup label="── OpenAI ──">
+                    {OPENAI_IMAGE_MODELS.map(m => (
                       <option key={m.id} value={m.id}>{m.name} — {m.desc}</option>
                     ))}
                   </optgroup>

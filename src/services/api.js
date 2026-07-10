@@ -4,6 +4,7 @@
  */
 
 const REPLICATE_API_KEY = import.meta.env.VITE_REPLICATE_API_KEY;
+const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 const VERTEX_KEYS = import.meta.env.VITE_VERTEX_API_KEYS?.split(',') || [];
 let vertexKeyIndex = 0;
 
@@ -655,6 +656,115 @@ function extractImageUrl(output) {
   }
   return null;
 }
+
+// ============================================================
+// OpenAI GPT Image (gpt-image-2)
+// Endpoint: POST /v1/images/generations
+// 回傳 b64_json，轉為 data URL 顯示
+// ============================================================
+export const OPENAI_IMAGE_MODELS = [
+  { id: 'gpt-image-2', name: 'GPT Image 2', desc: 'OpenAI 高品質生圖', model: 'gpt-image-2-2026-04-21' },
+];
+
+export const generateImageOpenAI = async (prompt, referenceImages = [], aspectRatio = '1:1') => {
+  if (!OPENAI_API_KEY) throw new Error('找不到 OpenAI API Key（請在 .env 設定 VITE_OPENAI_API_KEY）');
+
+  // 尺寸對應
+  const sizeMap = { '1:1': '1024x1024', '16:9': '1536x1024', '9:16': '1024x1536' };
+  const size = sizeMap[aspectRatio] || '1024x1024';
+
+  // 如果有參考圖，用 /v1/images/edits（圖片編輯模式）
+  if (referenceImages.length > 0) {
+    // 取第一張參考圖轉為 Blob
+    let imageBlob;
+    const refUrl = referenceImages[0];
+    if (refUrl.startsWith('data:')) {
+      const res = await fetch(refUrl);
+      imageBlob = await res.blob();
+    } else {
+      const res = await fetch(refUrl);
+      imageBlob = await res.blob();
+    }
+
+    const formData = new FormData();
+    formData.append('model', 'gpt-image-2-2026-04-21');
+    formData.append('prompt', prompt);
+    formData.append('image[]', imageBlob, 'reference.png');
+    formData.append('size', size);
+    formData.append('quality', 'high');
+
+    const response = await fetch('/api/openai/v1/images/edits', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error?.message || `OpenAI 圖片編輯失敗 (${response.status})`);
+    }
+
+    const result = await response.json();
+    const b64 = result?.data?.[0]?.b64_json;
+    if (!b64) throw new Error('OpenAI 未回傳圖片');
+    const imageUrl = `data:image/png;base64,${b64}`;
+
+    // 自動保存到本機
+    try {
+      await fetch('/api/save-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: imageUrl, filename: `gpt-image-${Date.now()}.png` })
+      });
+    } catch (e) { console.error('自動存檔失敗', e); }
+
+    return { status: 'succeeded', output: imageUrl };
+  }
+
+  // 純文字生圖
+  const payload = {
+    model: 'gpt-image-2-2026-04-21',
+    prompt,
+    n: 1,
+    size,
+    quality: 'high',
+  };
+
+  const response = await fetch('/api/openai/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `OpenAI 生圖失敗 (${response.status})`);
+  }
+
+  const result = await response.json();
+  let imageUrl;
+  if (result?.data?.[0]?.b64_json) {
+    imageUrl = `data:image/png;base64,${result.data[0].b64_json}`;
+  } else if (result?.data?.[0]?.url) {
+    imageUrl = result.data[0].url;
+  } else {
+    throw new Error('OpenAI 未回傳圖片');
+  }
+
+  // 自動保存到本機
+  try {
+    await fetch('/api/save-result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: imageUrl, filename: `gpt-image-${Date.now()}.png` })
+    });
+  } catch (e) { console.error('自動存檔失敗', e); }
+
+  return { status: 'succeeded', output: imageUrl };
+};
 
 // ============================================================
 // Google Vertex AI (生圖) — Gemini 3.1 Flash Image / Gemini 3 Pro Image
