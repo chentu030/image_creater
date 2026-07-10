@@ -78,6 +78,7 @@ export default function BrainstormHub() {
   const [lightboxImg, setLightboxImg] = useState(null);
   const [chatModel, setChatModel] = useLocalStorage('brainstorm_chatModel', 'gemini');
   const [webSearch, setWebSearch] = useLocalStorage('brainstorm_webSearch', true);
+  const [mobilePanel, setMobilePanel] = useState('chat'); // 'chat' | 'images' | 'topics'
 
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -316,8 +317,21 @@ export default function BrainstormHub() {
     <div className="workspace animate-fade-in" style={{ padding: 0 }}>
       <div className="brainstorm-layout">
 
+        {/* 手機版 tab 切換列 */}
+        <div className="mobile-panel-tabs">
+          <button className={`mobile-panel-tab ${mobilePanel === 'images' ? 'active' : ''}`} onClick={() => setMobilePanel('images')}>
+            <ImagePlus size={14}/> 參考圖
+          </button>
+          <button className={`mobile-panel-tab ${mobilePanel === 'chat' ? 'active' : ''}`} onClick={() => setMobilePanel('chat')}>
+            <Bot size={14}/> 聊天
+          </button>
+          <button className={`mobile-panel-tab ${mobilePanel === 'topics' ? 'active' : ''}`} onClick={() => setMobilePanel('topics')}>
+            <Bookmark size={14}/> 主題
+          </button>
+        </div>
+
         {/* ═══ 左側：圖片上傳區 ═══ */}
-        <div className="brainstorm-images-panel">
+        <div className={`brainstorm-images-panel ${mobilePanel !== 'images' ? 'mobile-hidden' : ''}`}>
           <div className="panel-header">
             <h3><ImagePlus size={16} /> 參考圖片</h3>
             <p>上傳圖片讓 AI 從中找靈感</p>
@@ -376,7 +390,7 @@ export default function BrainstormHub() {
         </div>
 
         {/* ═══ 中間：聊天區 ═══ */}
-        <div className="brainstorm-chat-panel">
+        <div className={`brainstorm-chat-panel ${mobilePanel !== 'chat' ? 'mobile-hidden' : ''}`}>
           {/* 聊天標題列 */}
           <div className="brainstorm-chat-header">
             <div>
@@ -509,7 +523,7 @@ export default function BrainstormHub() {
         </div>
 
         {/* ═══ 右側：主題列表 ═══ */}
-        <div className="brainstorm-topics-panel">
+        <div className={`brainstorm-topics-panel ${mobilePanel !== 'topics' ? 'mobile-hidden' : ''}`}>
           <div className="panel-header">
             <h3><Bookmark size={16} /> 儲存的主題</h3>
           </div>
