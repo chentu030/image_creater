@@ -46,18 +46,31 @@ export const generateImage = async (prompt, referenceImages = [], aspectRatio = 
     // 將所有參考圖片轉為 Base64 Data URI
     try {
       const promises = referenceImages.map(async (url) => {
-        const res = await fetch(url);
-        const blob = await res.blob();
+        // 已經是 data URL → 直接用
+        if (url.startsWith('data:')) return url;
+        // HTTP URL → 用 img + canvas 轉 base64（避免 CORS fetch 問題）
         return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth;
+              canvas.height = img.naturalHeight;
+              canvas.getContext('2d').drawImage(img, 0, 0);
+              resolve(canvas.toDataURL('image/jpeg', 0.9));
+            } catch (e) {
+              reject(e);
+            }
+          };
+          img.onerror = () => reject(new Error('圖片載入失敗: ' + url));
+          img.src = url;
         });
       });
       imagesBase64 = await Promise.all(promises);
     } catch (err) {
-      throw new Error('無法讀取參考圖片');
+      console.error('參考圖轉換失敗:', err);
+      throw new Error('無法讀取參考圖片：' + err.message);
     }
   }
 
