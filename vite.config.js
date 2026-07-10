@@ -131,7 +131,18 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/kie-task/, '')
       },
-      // OpenAI API (gpt-image-2 生圖)
+      // OpenAI Image API — 開發環境 proxy（生產走 Vercel serverless function）
+      '/api/openai-image': {
+        target: 'https://api.openai.com',
+        changeOrigin: true,
+        rewrite: (path) => {
+          // /api/openai-image?endpoint=generations → /v1/images/generations
+          const url = new URL(path, 'http://localhost');
+          const endpoint = url.searchParams.get('endpoint') || 'generations';
+          return `/v1/images/${endpoint}`;
+        }
+      },
+      // OpenAI API（其他用途如聊天等）
       '/api/openai': {
         target: 'https://api.openai.com',
         changeOrigin: true,

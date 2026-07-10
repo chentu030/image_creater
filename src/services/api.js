@@ -690,13 +690,13 @@ export const generateImageOpenAI = async (prompt, referenceImages = [], aspectRa
     // 取第一張參考圖轉為 Blob
     let imageBlob;
     const refUrl = referenceImages[0];
-    if (refUrl.startsWith('data:')) {
-      const res = await fetch(refUrl);
-      imageBlob = await res.blob();
-    } else {
-      const res = await fetch(refUrl);
-      imageBlob = await res.blob();
+    // Firebase Storage URL → 走 proxy
+    let fetchRefUrl = refUrl;
+    if (refUrl.includes('firebasestorage.googleapis.com')) {
+      fetchRefUrl = refUrl.replace('https://firebasestorage.googleapis.com', '/api/firebase-storage');
     }
+    const refRes = await fetch(fetchRefUrl);
+    imageBlob = await refRes.blob();
 
     const formData = new FormData();
     formData.append('model', 'gpt-image-2-2026-04-21');
@@ -705,9 +705,8 @@ export const generateImageOpenAI = async (prompt, referenceImages = [], aspectRa
     formData.append('size', size);
     formData.append('quality', 'high');
 
-    const response = await fetch('/api/openai/v1/images/edits', {
+    const response = await fetch('/api/openai-image?endpoint=edits', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
       body: formData
     });
 
@@ -742,10 +741,9 @@ export const generateImageOpenAI = async (prompt, referenceImages = [], aspectRa
     quality: 'high',
   };
 
-  const response = await fetch('/api/openai/v1/images/generations', {
+  const response = await fetch('/api/openai-image?endpoint=generations', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(payload)
