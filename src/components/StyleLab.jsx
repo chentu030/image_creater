@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useAuth } from '../hooks/useAuth';
-import { ImagePlus, Sliders, Wand2, Download, Loader2, Check, Target, Smile, Upload, X } from 'lucide-react';
+import { ImagePlus, Sliders, Wand2, Download, Loader2, Check, Target, Smile, Upload, X, Plus, FolderPlus, Trash2, Edit3 } from 'lucide-react';
 import { generateImage, generateImagePiAPI, generateImageVertex, generateImageOpenAI, PIAPI_IMAGE_MODELS, VERTEX_IMAGE_MODELS, OPENAI_IMAGE_MODELS } from '../services/api';
 import {
   uploadImageToStorage,
@@ -10,6 +10,10 @@ import {
   loadReferenceImages,
   saveReferenceImageRecord,
   deleteReferenceImage,
+  createRefGroup,
+  loadRefGroups,
+  renameRefGroup,
+  deleteRefGroup,
   isFirebaseConfigured
 } from '../services/firebase';
 import './Workspace.css';
@@ -39,7 +43,13 @@ export default function StyleLab() {
   
   const [localImages, setLocalImages] = useState([]);
   const [userUploadedImages, setUserUploadedImages] = useLocalStorage('styleLab_userUploaded', []);
-  const [cloudRefImages, setCloudRefImages] = useState([]); // Firebase 雲端參考圖 [{id, url, storagePath}]
+  const [cloudRefImages, setCloudRefImages] = useState([]); // Firebase 雲端參考圖
+  const [refGroups, setRefGroups] = useState([]); // [{id, name}]
+  const [activeGroupId, setActiveGroupId] = useLocalStorage('styleLab_activeGroup', 'all');
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [editGroupName, setEditGroupName] = useState('');
   const targetFileRef = useRef(null);
   const memeFileRef = useRef(null);
   const refUploadFileRef = useRef(null);
@@ -74,19 +84,19 @@ export default function StyleLab() {
     const dataUrls = await Promise.all(promises);
 
     if (uid && isFirebaseConfigured()) {
-      // 上傳到 Firebase Storage，並記錄到 Firestore
+      // 上傳到 Firebase Storage，記錄到 Firestore（歸入當前群組）
+      const targetGroup = (activeGroupId && activeGroupId !== 'all') ? activeGroupId : 'default';
       for (const dataUrl of dataUrls) {
         try {
           const storageUrl = await uploadImageToStorage(uid, dataUrl, 'reference-images');
-          await saveReferenceImageRecord(uid, storageUrl, null);
-          setCloudRefImages(prev => [...prev, { id: Date.now().toString(), url: storageUrl }]);
+          const docId = await saveReferenceImageRecord(uid, storageUrl, null, targetGroup);
+          setCloudRefImages(prev => [...prev, { id: docId || Date.now().toString(), url: storageUrl, groupId: targetGroup }]);
         } catch (err) {
           console.warn('上傳到 Firebase 失敗，fallback 到 localStorage:', err);
           setUserUploadedImages(prev => [...prev, dataUrl]);
         }
       }
     } else {
-      // 無 Firebase：存到 localStorage
       setUserUploadedImages(prev => [...prev, ...dataUrls]);
     }
     if (refUploadFileRef.current) refUploadFileRef.current.value = '';
@@ -111,14 +121,64 @@ export default function StyleLab() {
     }
   };
 
-  // 從 Firebase 載入雲端參考圖
+  // 從 Firebase 載入雲端參考圖 + 群組
   useEffect(() => {
     if (uid && isFirebaseConfigured()) {
       loadReferenceImages(uid).then(images => {
         setCloudRefImages(images);
       }).catch(err => console.warn('載入雲端參考圖失敗:', err));
+      loadRefGroups(uid).then(groups => {
+        setRefGroups(groups);
+      }).catch(err => console.warn('載入群組失敗:', err));
     }
   }, [uid]);
+
+  // 群組篩選後的雲端圖片
+  const filteredCloudImages = activeGroupId === 'all'
+    ? cloudRefImages
+    : cloudRefImages.filter(img => (img.groupId || 'default') === activeGroupId);
+
+  // 建立新群組
+  const handleCreateGroup = async () => {
+    const name = newGroupName.trim();
+    if (!name || !uid) return;
+    try {
+      const group = await createRefGroup(uid, name);
+      if (group) setRefGroups(prev => [...prev, group]);
+      setNewGroupName('');
+      setIsCreatingGroup(false);
+      setActiveGroupId(group.id);
+    } catch (e) {
+      console.warn('建立群組失敗:', e);
+    }
+  };
+
+  // 重命名群組
+  const handleRenameGroup = async (groupId) => {
+    const name = editGroupName.trim();
+    if (!name || !uid) return;
+    try {
+      await renameRefGroup(uid, groupId, name);
+      setRefGroups(prev => prev.map(g => g.id === groupId ? { ...g, name } : g));
+      setEditingGroupId(null);
+      setEditGroupName('');
+    } catch (e) {
+      console.warn('重命名群組失敗:', e);
+    }
+  };
+
+  // 刪除群組
+  const handleDeleteGroup = async (groupId) => {
+    if (!uid || !confirm('刪除此群組？圖片將移到「未分類」')) return;
+    try {
+      await deleteRefGroup(uid, groupId);
+      setRefGroups(prev => prev.filter(g => g.id !== groupId));
+      setCloudRefImages(prev => prev.map(img => img.groupId === groupId ? { ...img, groupId: 'default' } : img));
+      if (activeGroupId === groupId) setActiveGroupId('all');
+    } catch (e) {
+      console.warn('刪除群組失敗:', e);
+    }
+  };
 
   useEffect(() => {
     // 若 localStorage 存的是已移除的模型，重設為預設值
@@ -309,45 +369,105 @@ export default function StyleLab() {
                 </>
               )}
 
-              {/* ☁️ Firebase 雲端參考圖 */}
-              {cloudRefImages.length > 0 && (
+              {/* ☁️ Firebase 雲端參考圖（含群組） */}
+              {(cloudRefImages.length > 0 || refGroups.length > 0 || (uid && isFirebaseConfigured())) && (
                 <>
-                  <span className="upload-hint" style={{marginBottom: 4, fontSize: '0.75rem'}}>☁️ 雲端參考圖（點擊選取 / 按 × 刪除）</span>
-                  <div className="image-picker-scroll">
-                    {cloudRefImages.map((img, idx) => {
-                      const isSelected = referenceImages.includes(img.url);
-                      const toggleSelection = () => {
-                        if (isSelected) {
-                          setReferenceImages(referenceImages.filter(url => url !== img.url));
-                        } else {
-                          if (referenceImages.length >= 14) {
-                            alert('最多只能選擇 14 張參考圖片以達到最佳風格效果！');
-                            return;
-                          }
-                          setReferenceImages([...referenceImages, img.url]);
-                        }
-                      };
-                      return (
-                        <div
-                          key={`cloud-${idx}`}
-                          className={`picker-img-container ${isSelected ? 'selected' : ''}`}
-                          onClick={toggleSelection}
-                          style={{position: 'relative'}}
-                        >
-                          <img src={img.url} alt={`雲端 ${idx + 1}`} className="picker-img" />
-                          {isSelected && <div className="picker-check"><Check size={16}/></div>}
+                  <span className="upload-hint" style={{marginBottom: 4, fontSize: '0.75rem'}}>☁️ 雲端參考圖</span>
+                  {/* 群組 tabs */}
+                  <div className="ref-group-tabs">
+                    <button
+                      className={`ref-group-tab ${activeGroupId === 'all' ? 'active' : ''}`}
+                      onClick={() => setActiveGroupId('all')}
+                    >全部</button>
+                    <button
+                      className={`ref-group-tab ${activeGroupId === 'default' ? 'active' : ''}`}
+                      onClick={() => setActiveGroupId('default')}
+                    >未分類</button>
+                    {refGroups.map(g => (
+                      <div key={g.id} className="ref-group-tab-wrapper">
+                        {editingGroupId === g.id ? (
+                          <input
+                            className="ref-group-rename-input"
+                            value={editGroupName}
+                            onChange={e => setEditGroupName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleRenameGroup(g.id); if (e.key === 'Escape') setEditingGroupId(null); }}
+                            onBlur={() => handleRenameGroup(g.id)}
+                            autoFocus
+                          />
+                        ) : (
                           <button
-                            className="user-img-delete-btn"
-                            onClick={(e) => { e.stopPropagation(); removeCloudRefImage(idx); }}
-                            title="刪除這張圖"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      );
-                    })}
+                            className={`ref-group-tab ${activeGroupId === g.id ? 'active' : ''}`}
+                            onClick={() => setActiveGroupId(g.id)}
+                            onDoubleClick={() => { setEditingGroupId(g.id); setEditGroupName(g.name); }}
+                            title="雙擊重命名"
+                          >{g.name}</button>
+                        )}
+                        <button
+                          className="ref-group-delete-btn"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteGroup(g.id); }}
+                          title="刪除群組"
+                        ><X size={10}/></button>
+                      </div>
+                    ))}
+                    {/* 新增群組 */}
+                    {isCreatingGroup ? (
+                      <input
+                        className="ref-group-rename-input"
+                        placeholder="群組名稱…"
+                        value={newGroupName}
+                        onChange={e => setNewGroupName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleCreateGroup(); if (e.key === 'Escape') setIsCreatingGroup(false); }}
+                        onBlur={() => { if (newGroupName.trim()) handleCreateGroup(); else setIsCreatingGroup(false); }}
+                        autoFocus
+                      />
+                    ) : (
+                      <button
+                        className="ref-group-tab ref-group-add-btn"
+                        onClick={() => setIsCreatingGroup(true)}
+                        title="新增群組"
+                      ><Plus size={14}/></button>
+                    )}
                   </div>
-                </>
+                  {/* 篩選後的圖片 */}
+                  {filteredCloudImages.length > 0 ? (
+                    <div className="image-picker-scroll">
+                      {filteredCloudImages.map((img, idx) => {
+                        const isSelected = referenceImages.includes(img.url);
+                        const toggleSelection = () => {
+                          if (isSelected) {
+                            setReferenceImages(referenceImages.filter(url => url !== img.url));
+                          } else {
+                            if (referenceImages.length >= 14) {
+                              alert('最多只能選擇 14 張參考圖片以達到最佳風格效果！');
+                              return;
+                            }
+                            setReferenceImages([...referenceImages, img.url]);
+                          }
+                        };
+                        return (
+                          <div
+                            key={`cloud-${img.id || idx}`}
+                            className={`picker-img-container ${isSelected ? 'selected' : ''}`}
+                            onClick={toggleSelection}
+                            style={{position: 'relative'}}
+                          >
+                            <img src={img.url} alt={`雲端 ${idx + 1}`} className="picker-img" />
+                            {isSelected && <div className="picker-check"><Check size={16}/></div>}
+                            <button
+                              className="user-img-delete-btn"
+                              onClick={(e) => { e.stopPropagation(); removeCloudRefImage(cloudRefImages.indexOf(img)); }}
+                              title="刪除這張圖"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', padding: '8px 0'}}>此群組尚無參考圖</div>
+                  )}
+                </>  
               )}
 
               {/* 本地端預設風格圖選擇器 */}

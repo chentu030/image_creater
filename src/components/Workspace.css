@@ -272,3 +272,86 @@
 .picker-img-container:hover .user-img-delete-btn {
   opacity: 1;
 }
+
+/* ─── 參考圖群組 Tabs ─── */
+.ref-group-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.ref-group-tab {
+  padding: 4px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.ref-group-tab:hover {
+  background: rgba(255,255,255,0.1);
+  color: var(--text-color);
+}
+
+.ref-group-tab.active {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.5);
+  color: #c4b5fd;
+}
+
+.ref-group-tab-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ref-group-delete-btn {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(239, 68, 68, 0.8);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 0;
+}
+
+.ref-group-tab-wrapper:hover .ref-group-delete-btn {
+  opacity: 1;
+}
+
+.ref-group-add-btn {
+  border-style: dashed !important;
+  color: var(--text-secondary) !important;
+  padding: 4px 8px !important;
+}
+
+.ref-group-add-btn:hover {
+  border-color: rgba(139, 92, 246, 0.5) !important;
+  color: #c4b5fd !important;
+}
+
+.ref-group-rename-input {
+  padding: 3px 8px;
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  border-radius: 6px;
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--text-color);
+  font-size: 0.72rem;
+  width: 80px;
+  outline: none;
+}

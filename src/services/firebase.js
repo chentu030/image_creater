@@ -316,32 +316,35 @@ export async function loadUserSettings(uid) {
   return snap.exists() ? snap.data() : null;
 }
 
-// ─── Firestore: 使用者上傳的參考圖記錄 ───
-
 /**
- * 儲存參考圖記錄到 Firestore（含 Storage URL）
+ * 儲存參考圖記錄到 Firestore（含 Storage URL + 群組 ID）
  */
-export async function saveReferenceImageRecord(uid, imageUrl, storagePath) {
+export async function saveReferenceImageRecord(uid, imageUrl, storagePath, groupId = null) {
   if (!db) return;
   const colRef = collection(db, getUserPath(uid), 'reference_images');
   const docRef = doc(colRef);
   await setDoc(docRef, {
     url: imageUrl,
     storagePath: storagePath || null,
+    groupId: groupId || 'default',
     uploadedAt: new Date().toISOString()
   });
   return docRef.id;
 }
 
 /**
- * 載入所有參考圖記錄
+ * 載入所有參考圖記錄（可選群組篩選）
  */
-export async function loadReferenceImages(uid) {
+export async function loadReferenceImages(uid, groupId = null) {
   if (!db) return [];
   const colRef = collection(db, getUserPath(uid), 'reference_images');
   const q = query(colRef, orderBy('uploadedAt', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  const all = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (groupId && groupId !== 'all') {
+    return all.filter(img => (img.groupId || 'default') === groupId);
+  }
+  return all;
 }
 
 /**
@@ -355,7 +358,63 @@ export async function deleteReferenceImage(uid, docId, storagePath) {
   }
 }
 
+// ─── Firestore: 參考圖群組 ───
+
+/**
+ * 建立新群組
+ */
+export async function createRefGroup(uid, name) {
+  if (!db) return null;
+  const colRef = collection(db, getUserPath(uid), 'ref_groups');
+  const docRef = doc(colRef);
+  await setDoc(docRef, {
+    name,
+    createdAt: new Date().toISOString()
+  });
+  return { id: docRef.id, name };
+}
+
+/**
+ * 載入所有群組
+ */
+export async function loadRefGroups(uid) {
+  if (!db) return [];
+  const colRef = collection(db, getUserPath(uid), 'ref_groups');
+  const q = query(colRef, orderBy('createdAt', 'asc'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * 重命名群組
+ */
+export async function renameRefGroup(uid, groupId, newName) {
+  if (!db) return;
+  const docRef = doc(db, getUserPath(uid), 'ref_groups', groupId);
+  await setDoc(docRef, { name: newName }, { merge: true });
+}
+
+/**
+ * 刪除群組（群組內的圖片改歸到 default）
+ */
+export async function deleteRefGroup(uid, groupId) {
+  if (!db) return;
+  // 將該群組的圖片改為 default
+  const imgColRef = collection(db, getUserPath(uid), 'reference_images');
+  const snapshot = await getDocs(imgColRef);
+  const batch = writeBatch(db);
+  for (const d of snapshot.docs) {
+    if (d.data().groupId === groupId) {
+      batch.update(doc(imgColRef, d.id), { groupId: 'default' });
+    }
+  }
+  // 刪除群組文件
+  batch.delete(doc(db, getUserPath(uid), 'ref_groups', groupId));
+  await batch.commit();
+}
+
 // ─── 是否已設定 Firebase ───
 export function isFirebaseConfigured() {
   return hasConfig;
 }
+
