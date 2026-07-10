@@ -201,7 +201,19 @@ export default function BrainstormHub() {
     for (const file of imageFiles) {
       const dataUrl = await readFileAsDataUrl(file);
       const compressed = await compressImage(dataUrl);
-      newImages.push(compressed);
+      
+      // 有 Firebase → 上傳到 Storage 取得持久 URL
+      if (uid && isFirebaseConfigured()) {
+        try {
+          const storageUrl = await uploadImageToStorage(uid, compressed, 'brainstorm-images');
+          newImages.push(storageUrl);
+        } catch (e) {
+          console.warn('上傳圖片到 Storage 失敗，使用 data URL:', e);
+          newImages.push(compressed);
+        }
+      } else {
+        newImages.push(compressed);
+      }
     }
 
     const updated = [...uploadedImages, ...newImages];
