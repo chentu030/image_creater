@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { ImagePlus, Sliders, Wand2, Download, Loader2, Check, Target, Smile } from 'lucide-react';
+import { ImagePlus, Sliders, Wand2, Download, Loader2, Check, Target, Smile, Upload, X } from 'lucide-react';
 import { generateImage, generateImagePiAPI, generateImageVertex, PIAPI_IMAGE_MODELS, VERTEX_IMAGE_MODELS } from '../services/api';
 import './Workspace.css';
 
@@ -25,8 +25,10 @@ export default function StyleLab() {
   const [errorMsg, setErrorMsg] = useState(null);
   
   const [localImages, setLocalImages] = useState([]);
+  const [userUploadedImages, setUserUploadedImages] = useLocalStorage('styleLab_userUploaded', []); // 使用者自訂上傳的參考圖 (data URLs)
   const targetFileRef = useRef(null);
   const memeFileRef = useRef(null);
+  const refUploadFileRef = useRef(null);
 
   const handleTargetUpload = (e) => {
     const file = e.target.files?.[0];
@@ -44,6 +46,28 @@ export default function StyleLab() {
     reader.onloadend = () => setMemeImage(reader.result);
     reader.readAsDataURL(file);
     if (memeFileRef.current) memeFileRef.current.value = '';
+  };
+
+  // 上傳自訂參考圖（支援多選）
+  const handleRefUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const promises = files.map(file => new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    }));
+    Promise.all(promises).then(dataUrls => {
+      setUserUploadedImages(prev => [...prev, ...dataUrls]);
+    });
+    if (refUploadFileRef.current) refUploadFileRef.current.value = '';
+  };
+
+  const removeUserUploadedImage = (index) => {
+    const imgUrl = userUploadedImages[index];
+    setUserUploadedImages(prev => prev.filter((_, i) => i !== index));
+    // 如果這張圖也在已選的參考圖中，一併移除
+    setReferenceImages(prev => prev.filter(url => url !== imgUrl));
   };
 
   useEffect(() => {
@@ -155,40 +179,100 @@ export default function StyleLab() {
             <div className="input-group">
               <label>參考圖 (Reference Image) - 可選 1~14 張</label>
               
-              {/* 本地端圖片選擇器 */}
-              {localImages.length > 0 && (
-                <div className="image-picker-scroll">
-                  {localImages.map(img => {
-                    // 開發環境用 /local-images/，Vercel 用 /style-images/
-                    const isDev = !!import.meta.env.DEV;
-                    const prefix = isDev ? '/local-images/' : '/style-images/';
-                    const imgUrl = `${prefix}${encodeURIComponent(img)}`;
-                    const isSelected = referenceImages.includes(imgUrl);
-                    
-                    const toggleSelection = () => {
-                      if (isSelected) {
-                        setReferenceImages(referenceImages.filter(url => url !== imgUrl));
-                      } else {
-                        if (referenceImages.length >= 14) {
-                          alert('最多只能選擇 14 張參考圖片以達到最佳風格效果！');
-                          return;
-                        }
-                        setReferenceImages([...referenceImages, imgUrl]);
-                      }
-                    };
+              {/* 上傳自訂參考圖按鈕 */}
+              <input
+                type="file"
+                ref={refUploadFileRef}
+                style={{display: 'none'}}
+                accept="image/*"
+                multiple
+                onChange={handleRefUpload}
+              />
+              <button
+                className="btn-secondary"
+                onClick={() => refUploadFileRef.current?.click()}
+                style={{marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, width: '100%', justifyContent: 'center'}}
+              >
+                <Upload size={16} /> 上傳自訂參考圖（可多選）
+              </button>
 
-                    return (
-                      <div 
-                        key={img} 
-                        className={`picker-img-container ${isSelected ? 'selected' : ''}`}
-                        onClick={toggleSelection}
-                      >
-                        <img src={imgUrl} alt={img} className="picker-img" />
-                        {isSelected && <div className="picker-check"><Check size={16}/></div>}
-                      </div>
-                    );
-                  })}
-                </div>
+              {/* 使用者上傳的自訂參考圖 */}
+              {userUploadedImages.length > 0 && (
+                <>
+                  <span className="upload-hint" style={{marginBottom: 4, fontSize: '0.75rem'}}>📷 你上傳的參考圖（點擊選取 / 按 × 刪除）</span>
+                  <div className="image-picker-scroll">
+                    {userUploadedImages.map((dataUrl, idx) => {
+                      const isSelected = referenceImages.includes(dataUrl);
+                      const toggleSelection = () => {
+                        if (isSelected) {
+                          setReferenceImages(referenceImages.filter(url => url !== dataUrl));
+                        } else {
+                          if (referenceImages.length >= 14) {
+                            alert('最多只能選擇 14 張參考圖片以達到最佳風格效果！');
+                            return;
+                          }
+                          setReferenceImages([...referenceImages, dataUrl]);
+                        }
+                      };
+                      return (
+                        <div
+                          key={`user-${idx}`}
+                          className={`picker-img-container ${isSelected ? 'selected' : ''}`}
+                          onClick={toggleSelection}
+                          style={{position: 'relative'}}
+                        >
+                          <img src={dataUrl} alt={`上傳 ${idx + 1}`} className="picker-img" />
+                          {isSelected && <div className="picker-check"><Check size={16}/></div>}
+                          <button
+                            className="user-img-delete-btn"
+                            onClick={(e) => { e.stopPropagation(); removeUserUploadedImage(idx); }}
+                            title="刪除這張圖"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* 本地端預設風格圖選擇器 */}
+              {localImages.length > 0 && (
+                <>
+                  <span className="upload-hint" style={{marginBottom: 4, fontSize: '0.75rem'}}>🎨 預設風格庫</span>
+                  <div className="image-picker-scroll">
+                    {localImages.map(img => {
+                      const isDev = !!import.meta.env.DEV;
+                      const prefix = isDev ? '/local-images/' : '/style-images/';
+                      const imgUrl = `${prefix}${encodeURIComponent(img)}`;
+                      const isSelected = referenceImages.includes(imgUrl);
+                      
+                      const toggleSelection = () => {
+                        if (isSelected) {
+                          setReferenceImages(referenceImages.filter(url => url !== imgUrl));
+                        } else {
+                          if (referenceImages.length >= 14) {
+                            alert('最多只能選擇 14 張參考圖片以達到最佳風格效果！');
+                            return;
+                          }
+                          setReferenceImages([...referenceImages, imgUrl]);
+                        }
+                      };
+
+                      return (
+                        <div 
+                          key={img} 
+                          className={`picker-img-container ${isSelected ? 'selected' : ''}`}
+                          onClick={toggleSelection}
+                        >
+                          <img src={imgUrl} alt={img} className="picker-img" />
+                          {isSelected && <div className="picker-check"><Check size={16}/></div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
 
               {referenceImages.length === 0 ? (
