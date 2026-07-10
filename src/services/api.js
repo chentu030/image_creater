@@ -1000,77 +1000,69 @@ export const generateVideoVertexVeo = async (modelId, prompt, imageBase64 = null
   return { status: 'succeeded', output: videoUrl };
 };
 
-// --- 5. LLM API (Vertex AI 靈感發想) ---
-export const chatWithAI = async (messageHistory) => {
+// ============================================================
+// LLM Chat API — 多模型支援（Gemini / Claude / Grok）+ 聯網搜尋
+// ============================================================
+const CLAUDE_API_KEY = import.meta.env.VITE_CLAUDE_API_KEY;
+const GROK_API_KEY = import.meta.env.VITE_GROK_API_KEY;
+
+// 可用的聊天模型
+export const CHAT_MODELS = [
+  { id: 'gemini', name: 'Gemini 3 Flash', provider: 'google' },
+  { id: 'claude', name: 'Claude Sonnet 5', provider: 'anthropic' },
+  { id: 'grok', name: 'Grok 4.5', provider: 'xai' },
+];
+
+// --- Gemini (Vertex AI) ---
+export const chatWithAI = async (messageHistory, webSearch = true) => {
   const apiKey = getNextVertexKey();
   if (!apiKey) throw new Error('找不到 Vertex AI API Key');
 
-  // Vertex AI endpoint
   const url = `/api/vertex/publishers/google/models/gemini-3-flash-preview:generateContent`;
-  
-  // 組合 Gemini 格式的訊息
   const contents = messageHistory.map(msg => ({
-    role: msg.role === 'system' ? 'model' : 'user', // Gemini 使用 'user' 和 'model'
+    role: msg.role === 'system' ? 'model' : 'user',
     parts: [{ text: msg.content }]
   }));
 
+  const body = { contents };
+  if (webSearch) {
+    body.tools = [{ googleSearch: {} }];
+  }
+
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'X-Goog-Api-Key': apiKey,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      contents: contents,
-      tools: [
-        { googleSearch: {} } // 開啟 Google Search Grounding
-      ]
-    })
+    headers: { 'X-Goog-Api-Key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {
     const err = await response.json();
-    throw new Error(err.error?.message || 'LLM API 呼叫失敗');
+    throw new Error(err.error?.message || 'Gemini API 呼叫失敗');
   }
 
   const data = await response.json();
   const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '(無回覆)';
-  
-  return {
-    role: 'system',
-    content: replyText
-  };
+  return { role: 'system', content: replyText };
 };
 
-// --- 5b. LLM API (靈感發想 — 附帶圖片) ---
-// 將使用者上傳的圖片（data URL 陣列）附加到對話中，讓 AI 從圖片內容中擷取靈感。
-// imageDataUrls: string[] — 每個元素為 data:image/...;base64,... 格式
-export const chatWithAIAndImages = async (messageHistory, imageDataUrls = []) => {
+// --- Gemini with Images ---
+export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], webSearch = true) => {
   const apiKey = getNextVertexKey();
   if (!apiKey) throw new Error('找不到 Vertex AI API Key');
 
   const url = `/api/vertex/publishers/google/models/gemini-3-flash-preview:generateContent`;
-
-  // 組合 Gemini 格式的訊息，圖片以 inlineData 放入
   const contents = messageHistory.map(msg => {
     const parts = [];
-
-    // 如果訊息本身附帶圖片
     if (msg.images && msg.images.length > 0) {
       for (const imgUrl of msg.images) {
         const inline = dataUrlToInlineData(imgUrl);
         if (inline) parts.push({ inlineData: inline });
       }
     }
-
     parts.push({ text: msg.content });
-    return {
-      role: msg.role === 'system' ? 'model' : 'user',
-      parts
-    };
+    return { role: msg.role === 'system' ? 'model' : 'user', parts };
   });
 
-  // 如果有額外的全域圖片（初次發想用），附加到最後一條使用者訊息
   if (imageDataUrls.length > 0 && contents.length > 0) {
     const lastUserIdx = contents.length - 1;
     const imageParts = [];
@@ -1078,34 +1070,171 @@ export const chatWithAIAndImages = async (messageHistory, imageDataUrls = []) =>
       const inline = dataUrlToInlineData(imgUrl);
       if (inline) imageParts.push({ inlineData: inline });
     }
-    // 插入到最後一條訊息的 text 之前
     contents[lastUserIdx].parts = [...imageParts, ...contents[lastUserIdx].parts];
+  }
+
+  const body = { contents };
+  if (webSearch) {
+    body.tools = [{ googleSearch: {} }];
   }
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'X-Goog-Api-Key': apiKey,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      contents: contents,
-      tools: [
-        { googleSearch: {} }
-      ]
-    })
+    headers: { 'X-Goog-Api-Key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {
     const err = await response.json();
-    throw new Error(err.error?.message || 'LLM API 呼叫失敗');
+    throw new Error(err.error?.message || 'Gemini API 呼叫失敗');
   }
 
   const data = await response.json();
   const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '(無回覆)';
-
-  return {
-    role: 'system',
-    content: replyText
-  };
+  return { role: 'system', content: replyText };
 };
+
+// --- Claude (Anthropic Messages API) ---
+export const chatWithClaude = async (messageHistory, webSearch = true) => {
+  if (!CLAUDE_API_KEY) throw new Error('找不到 Claude API Key');
+
+  // Anthropic 格式：messages 陣列，role 為 user / assistant
+  // 過濾掉空訊息，確保首則為 user
+  const messages = messageHistory
+    .filter(msg => msg.content && msg.content.trim())
+    .map(msg => ({
+      role: msg.role === 'system' ? 'assistant' : 'user',
+      content: msg.content
+    }));
+
+  // Anthropic 要求 messages 第一則必須是 user
+  if (messages.length > 0 && messages[0].role !== 'user') {
+    messages.shift();
+  }
+
+  const body = {
+    model: 'claude-sonnet-5',
+    max_tokens: 4096,
+    messages
+  };
+
+  // 聯網搜尋：使用 Anthropic 的 web_search server tool
+  if (webSearch) {
+    body.tools = [{
+      type: 'web_search_20260209',
+      name: 'web_search',
+      max_uses: 5
+    }];
+  }
+
+  const response = await fetch('/api/claude/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Claude API 呼叫失敗 (${response.status})`);
+  }
+
+  const data = await response.json();
+
+  // Claude 回傳格式：content 為陣列，取 text type 的內容
+  let replyText = '(無回覆)';
+  if (data.content && Array.isArray(data.content)) {
+    const textParts = data.content.filter(c => c.type === 'text');
+    if (textParts.length > 0) {
+      replyText = textParts.map(t => t.text).join('\n');
+    }
+  }
+
+  return { role: 'system', content: replyText };
+};
+
+// --- Grok (xAI Responses API) ---
+export const chatWithGrok = async (messageHistory, webSearch = true) => {
+  if (!GROK_API_KEY) throw new Error('找不到 Grok API Key');
+
+  // xAI Responses API 格式
+  const input = messageHistory
+    .filter(msg => msg.content && msg.content.trim())
+    .map(msg => ({
+      role: msg.role === 'system' ? 'assistant' : 'user',
+      content: msg.content
+    }));
+
+  // 確保第一則為 user
+  if (input.length > 0 && input[0].role !== 'user') {
+    input.shift();
+  }
+
+  const body = {
+    model: 'grok-4.5',
+    input
+  };
+
+  // 聯網搜尋：使用 xAI 的 web_search tool（Responses API）
+  if (webSearch) {
+    body.tools = [{ type: 'web_search' }];
+  }
+
+  const response = await fetch('/api/grok/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GROK_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Grok API 呼叫失敗 (${response.status})`);
+  }
+
+  const data = await response.json();
+
+  // xAI Responses API 回傳格式：output 為陣列
+  let replyText = '(無回覆)';
+  if (data.output && Array.isArray(data.output)) {
+    const messageParts = data.output.filter(o => o.type === 'message');
+    if (messageParts.length > 0) {
+      const lastMsg = messageParts[messageParts.length - 1];
+      if (lastMsg.content && Array.isArray(lastMsg.content)) {
+        replyText = lastMsg.content
+          .filter(c => c.type === 'output_text')
+          .map(c => c.text)
+          .join('\n');
+      }
+    }
+  }
+  // fallback: 如果有 output_text 直接在頂層
+  if (replyText === '(無回覆)' && data.output_text) {
+    replyText = data.output_text;
+  }
+
+  return { role: 'system', content: replyText };
+};
+
+// --- 統一路由：根據 modelId 分派到對應 API ---
+export const chatWithModel = async (modelId, messageHistory, webSearch = true, imageDataUrls = []) => {
+  switch (modelId) {
+    case 'claude':
+      return chatWithClaude(messageHistory, webSearch);
+    case 'grok':
+      return chatWithGrok(messageHistory, webSearch);
+    case 'gemini':
+    default:
+      if (imageDataUrls.length > 0) {
+        return chatWithAIAndImages(messageHistory, imageDataUrls, webSearch);
+      }
+      return chatWithAI(messageHistory, webSearch);
+  }
+};
+

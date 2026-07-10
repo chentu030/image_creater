@@ -6,7 +6,7 @@ import {
   BookOpen, Bookmark, Trash2, Edit3, Check, GitBranch, Upload
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { chatWithAI, chatWithAIAndImages } from '../services/api';
+import { chatWithModel, CHAT_MODELS } from '../services/api';
 import {
   saveBrainstormTopics,
   loadBrainstormTopics,
@@ -76,6 +76,8 @@ export default function BrainstormHub() {
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
   const [lightboxImg, setLightboxImg] = useState(null);
+  const [chatModel, setChatModel] = useLocalStorage('brainstorm_chatModel', 'gemini');
+  const [webSearch, setWebSearch] = useLocalStorage('brainstorm_webSearch', true);
 
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -255,7 +257,7 @@ export default function BrainstormHub() {
         { role: 'system', content: '好的，我會從圖片中分析風格並延伸發想原創主題，而非照抄。請上傳圖片吧！' },
         ...newMessages
       ];
-      const aiReply = await chatWithAIAndImages(fullHistory, uploadedImages);
+      const aiReply = await chatWithModel(chatModel, fullHistory, webSearch, uploadedImages);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
     } catch (error) {
       console.error(error);
@@ -288,9 +290,7 @@ export default function BrainstormHub() {
     try {
       // 如果有圖片，用圖片版 API
       const hasImages = uploadedImages.length > 0;
-      const aiReply = hasImages
-        ? await chatWithAIAndImages(newMessages, uploadedImages)
-        : await chatWithAI(newMessages);
+      const aiReply = await chatWithModel(chatModel, newMessages, webSearch, hasImages ? uploadedImages : []);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
     } catch (error) {
       console.error(error);
@@ -471,17 +471,39 @@ export default function BrainstormHub() {
 
             {/* 輸入區 */}
             <div className="chat-input-area">
-              <input
-                type="text"
-                className="glass-input chat-input"
-                placeholder={activeTopic ? '繼續追問或描述你想要的方向…' : '輸入您的想法，開始發想…'}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
-              />
-              <button className="btn-primary send-btn" onClick={handleSend} disabled={isLoading}>
-                <Send size={18} />
-              </button>
+              {/* 模型選擇 + 聯網開關 */}
+              <div className="chat-controls-row">
+                <select
+                  className="glass-input chat-model-select"
+                  value={chatModel}
+                  onChange={e => setChatModel(e.target.value)}
+                  title="切換 AI 模型"
+                >
+                  {CHAT_MODELS.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+                <button
+                  className={`btn-web-search ${webSearch ? 'active' : ''}`}
+                  onClick={() => setWebSearch(!webSearch)}
+                  title={webSearch ? '聯網搜尋：已開啟' : '聯網搜尋：已關閉'}
+                >
+                  🌐 {webSearch ? 'ON' : 'OFF'}
+                </button>
+              </div>
+              <div className="chat-input-row">
+                <input
+                  type="text"
+                  className="glass-input chat-input"
+                  placeholder={activeTopic ? '繼續追問或描述你想要的方向…' : '輸入您的想法，開始發想…'}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSend()}
+                />
+                <button className="btn-primary send-btn" onClick={handleSend} disabled={isLoading}>
+                  <Send size={18} />
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -542,3 +542,53 @@
   border-radius: 6px;
 }
 
+/* ─── 模型選擇 + 聯網搜尋 ─── */
+.chat-controls-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.chat-model-select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px !important;
+  font-size: 0.8rem !important;
+  border-radius: 8px !important;
+  height: auto !important;
+}
+
+.btn-web-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-web-search:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.btn-web-search.active {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input-row .chat-input {
+  flex: 1;
+}
