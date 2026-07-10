@@ -146,8 +146,68 @@ input, textarea, select {
   display: flex;
   flex-direction: column;
   background: var(--bg-color);
-  z-index: 10;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  z-index: 100;
+  transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+  flex-shrink: 0;
+}
+
+/* 預設收合（所有螢幕） */
+.sidebar.sidebar-collapsed {
+  transform: translateX(-100%);
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* 展開 */
+.sidebar.sidebar-open {
+  transform: translateX(0);
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* 漢堡按鈕 — 永遠顯示 */
+.sidebar-hamburger {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 90;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--bg-color);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.sidebar-hamburger:hover {
+  background: var(--secondary-bg);
+}
+
+.sidebar-hamburger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text-color);
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+/* 背景遮罩 */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 99;
+  backdrop-filter: blur(2px);
 }
 
 .main-content {
@@ -155,6 +215,27 @@ input, textarea, select {
   height: 100%;
   overflow-y: auto;
   position: relative;
+
+  /* 給漢堡按鈕留空間 */
+  padding-top: 0;
+}
+
+/* 桌面版（≥1024px）：sidebar 保持展開、隱藏漢堡 */
+@media (min-width: 1024px) {
+  .sidebar {
+    position: relative !important;
+    transform: none !important;
+  }
+  .sidebar.sidebar-collapsed {
+    transform: none !important;
+    position: relative !important;
+  }
+  .sidebar-hamburger {
+    display: none;
+  }
+  .sidebar-overlay {
+    display: none;
+  }
 }
 
 /* Scrollbar */

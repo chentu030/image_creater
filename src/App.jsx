@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import Sidebar from './components/Sidebar';
 import StyleLab from './components/StyleLab';
@@ -10,7 +10,14 @@ import './index.css';
 function AppContent() {
   const [activeTab, setActiveTab] = useState('style-lab');
   const [theme, setTheme] = useLocalStorage('app_theme', 'dark');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, loading, login, logout, isConfigured, displayName, photoURL } = useAuth();
+
+  // 切換 tab 後自動收合 sidebar
+  const handleSetActiveTab = useCallback((tab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -20,7 +27,11 @@ function AppContent() {
   if (!isConfigured) {
     return (
       <div className="app-container">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} setTheme={setTheme} />
+        {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+        <Sidebar activeTab={activeTab} setActiveTab={handleSetActiveTab} theme={theme} setTheme={setTheme} isOpen={sidebarOpen} onToggle={() => setSidebarOpen(v => !v)} />
+        <button className="sidebar-hamburger" onClick={() => setSidebarOpen(v => !v)} title="選單">
+          <span /><span /><span />
+        </button>
         <main className="main-content">
           {activeTab === 'style-lab' && <StyleLab />}
           {activeTab === 'brainstorm' && <BrainstormHub />}
@@ -68,14 +79,20 @@ function AppContent() {
   // 已登入
   return (
     <div className="app-container">
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
       <Sidebar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleSetActiveTab}
         theme={theme}
         setTheme={setTheme}
         user={{ displayName, photoURL }}
         onLogout={logout}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(v => !v)}
       />
+      <button className="sidebar-hamburger" onClick={() => setSidebarOpen(v => !v)} title="選單">
+        <span /><span /><span />
+      </button>
       <main className="main-content">
         {activeTab === 'style-lab' && <StyleLab />}
         {activeTab === 'brainstorm' && <BrainstormHub />}

@@ -2,7 +2,7 @@ import React from 'react';
 import { Palette, Lightbulb, Film, Settings, Moon, Sun, LogOut } from 'lucide-react';
 import './Sidebar.css';
 
-export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, user, onLogout }) {
+export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, user, onLogout, isOpen, onToggle }) {
   const navItems = [
     { id: 'style-lab', label: '風格繪圖區', icon: <Palette size={20} /> },
     { id: 'brainstorm', label: '靈感發想區', icon: <Lightbulb size={20} /> },
@@ -12,7 +12,7 @@ export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, user
   const isDark = theme === 'dark';
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
       <div className="sidebar-header">
         <div className="logo-icon">✨</div>
         <h2>AI Studio</h2>
