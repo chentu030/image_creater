@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useAuth } from '../hooks/useAuth';
 import { Film, UploadCloud, Play, Settings, Loader2, Download, Type } from 'lucide-react';
 import { generateAnimation, generateVideoPiAPI, generateVideoKie, generateVideoVertexVeo, PIAPI_MODELS, KIE_VIDEO_MODELS, VERTEX_VIDEO_MODELS } from '../services/api';
+import { uploadGeneratedToStorage, saveGenerationRecord, isFirebaseConfigured } from '../services/firebase';
 import './Workspace.css';
 import './AnimationStudio.css';
 
@@ -18,6 +20,7 @@ const needsPrompt = (modelId) => isPiAPIModel(modelId) || isKieModel(modelId) ||
 const VALID_MODEL_IDS = ['tooncrafter', 'wan2.7', ...KIE_VIDEO_MODELS.map(m => m.id), ...PIAPI_MODELS.map(m => m.id), ...VERTEX_VIDEO_MODELS.map(m => m.id)];
 
 export default function AnimationStudio() {
+  const { uid } = useAuth();
   const [model, setModel] = useLocalStorage('anim_model', 'kie-seedance-2-mini');
   const [motion, setMotion] = useLocalStorage('anim_motion', 5);
   const [duration, setDuration] = useLocalStorage('anim_duration', 5);
@@ -82,6 +85,25 @@ export default function AnimationStudio() {
         result = await generateAnimation(model, motion, uploadedImages);
       }
       setGeneratedVideoUrl(result.output);
+
+      // 自動存到 Firebase（背景執行）
+      if (uid && isFirebaseConfigured()) {
+        (async () => {
+          try {
+            const storageUrl = await uploadGeneratedToStorage(uid, result.output, 'video');
+            await saveGenerationRecord(uid, {
+              type: 'video',
+              model,
+              prompt: needsPrompt(model) ? prompt : '(動畫生成)',
+              outputUrl: storageUrl,
+              duration,
+              timestamp: new Date().toISOString()
+            });
+          } catch (e) {
+            console.warn('Firebase 生成歷史儲存失敗:', e);
+          }
+        })();
+      }
     } catch (error) {
       console.error(error);
       setErrorMsg(error.message);

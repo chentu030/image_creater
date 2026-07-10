@@ -1,8 +1,8 @@
 import React from 'react';
-import { Palette, Lightbulb, Film, Settings, Moon, Sun } from 'lucide-react';
+import { Palette, Lightbulb, Film, Settings, Moon, Sun, LogOut } from 'lucide-react';
 import './Sidebar.css';
 
-export default function Sidebar({ activeTab, setActiveTab, theme, setTheme }) {
+export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, user, onLogout }) {
   const navItems = [
     { id: 'style-lab', label: '風格繪圖區', icon: <Palette size={20} /> },
     { id: 'brainstorm', label: '靈感發想區', icon: <Lightbulb size={20} /> },
@@ -46,6 +46,25 @@ export default function Sidebar({ activeTab, setActiveTab, theme, setTheme }) {
           <Settings size={20} />
           <span>設定 API Keys</span>
         </button>
+
+        {/* 使用者資訊 */}
+        {user && (
+          <div className="sidebar-user-info">
+            {user.photoURL ? (
+              <img src={user.photoURL} alt="" className="sidebar-user-avatar" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="sidebar-user-avatar" style={{background: 'var(--secondary-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px'}}>
+                {(user.displayName || '?')[0]}
+              </div>
+            )}
+            <span className="sidebar-user-name">{user.displayName || '使用者'}</span>
+            {onLogout && (
+              <button className="sidebar-logout-btn" onClick={onLogout} title="登出">
+                <LogOut size={14} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </aside>
   );

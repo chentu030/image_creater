@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useAuth } from '../hooks/useAuth';
 import { ImagePlus, Sliders, Wand2, Download, Loader2, Check, Target, Smile, Upload, X } from 'lucide-react';
 import { generateImage, generateImagePiAPI, generateImageVertex, PIAPI_IMAGE_MODELS, VERTEX_IMAGE_MODELS } from '../services/api';
+import {
+  uploadImageToStorage,
+  uploadGeneratedToStorage,
+  saveGenerationRecord,
+  loadReferenceImages,
+  saveReferenceImageRecord,
+  deleteReferenceImage,
+  isFirebaseConfigured
+} from '../services/firebase';
 import './Workspace.css';
 
 // 判斷是否為 PiAPI 圖片模型
@@ -13,19 +23,21 @@ const isVertexImageModel = (modelId) => VERTEX_IMAGE_MODELS.some(m => m.id === m
 const VALID_IMAGE_MODEL_IDS = ['bytedance/seedream-5-lite', 'bytedance/seedream-4.5', ...VERTEX_IMAGE_MODELS.map(m => m.id), ...PIAPI_IMAGE_MODELS.map(m => m.id)];
 
 export default function StyleLab() {
+  const { uid } = useAuth();
   const [prompt, setPrompt] = useLocalStorage('styleLab_prompt', '用這隻北極熊的風格畫一隻兔子');
   const [aspectRatio, setAspectRatio] = useLocalStorage('styleLab_aspectRatio', '1:1');
   const [keepPose, setKeepPose] = useLocalStorage('styleLab_keepPose', true);
   const [modelVersion, setModelVersion] = useLocalStorage('styleLab_model', 'bytedance/seedream-5-lite');
   const [referenceImages, setReferenceImages] = useLocalStorage('styleLab_refImgs', []);
-  const [targetImage, setTargetImage] = useState(null); // 角色圖 (data URL)
-  const [memeImage, setMemeImage] = useState(null); // 迷因/動作參考圖 (data URL)
+  const [targetImage, setTargetImage] = useState(null);
+  const [memeImage, setMemeImage] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImageUrl, setGeneratedImageUrl] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   
   const [localImages, setLocalImages] = useState([]);
-  const [userUploadedImages, setUserUploadedImages] = useLocalStorage('styleLab_userUploaded', []); // 使用者自訂上傳的參考圖 (data URLs)
+  const [userUploadedImages, setUserUploadedImages] = useLocalStorage('styleLab_userUploaded', []);
+  const [cloudRefImages, setCloudRefImages] = useState([]); // Firebase 雲端參考圖 [{id, url, storagePath}]
   const targetFileRef = useRef(null);
   const memeFileRef = useRef(null);
   const refUploadFileRef = useRef(null);
@@ -48,8 +60,8 @@ export default function StyleLab() {
     if (memeFileRef.current) memeFileRef.current.value = '';
   };
 
-  // 上傳自訂參考圖（支援多選）
-  const handleRefUpload = (e) => {
+  // 上傳自訂參考圖（支援多選）— 有 Firebase 時自動上傳到 Storage
+  const handleRefUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     const promises = files.map(file => new Promise((resolve) => {
@@ -57,18 +69,54 @@ export default function StyleLab() {
       reader.onloadend = () => resolve(reader.result);
       reader.readAsDataURL(file);
     }));
-    Promise.all(promises).then(dataUrls => {
+    const dataUrls = await Promise.all(promises);
+
+    if (uid && isFirebaseConfigured()) {
+      // 上傳到 Firebase Storage，並記錄到 Firestore
+      for (const dataUrl of dataUrls) {
+        try {
+          const storageUrl = await uploadImageToStorage(uid, dataUrl, 'reference-images');
+          await saveReferenceImageRecord(uid, storageUrl, null);
+          setCloudRefImages(prev => [...prev, { id: Date.now().toString(), url: storageUrl }]);
+        } catch (err) {
+          console.warn('上傳到 Firebase 失敗，fallback 到 localStorage:', err);
+          setUserUploadedImages(prev => [...prev, dataUrl]);
+        }
+      }
+    } else {
+      // 無 Firebase：存到 localStorage
       setUserUploadedImages(prev => [...prev, ...dataUrls]);
-    });
+    }
     if (refUploadFileRef.current) refUploadFileRef.current.value = '';
   };
 
   const removeUserUploadedImage = (index) => {
     const imgUrl = userUploadedImages[index];
     setUserUploadedImages(prev => prev.filter((_, i) => i !== index));
-    // 如果這張圖也在已選的參考圖中，一併移除
     setReferenceImages(prev => prev.filter(url => url !== imgUrl));
   };
+
+  const removeCloudRefImage = async (index) => {
+    const img = cloudRefImages[index];
+    setCloudRefImages(prev => prev.filter((_, i) => i !== index));
+    setReferenceImages(prev => prev.filter(url => url !== img.url));
+    if (uid && img.id) {
+      try {
+        await deleteReferenceImage(uid, img.id, img.storagePath);
+      } catch (e) {
+        console.warn('刪除雲端參考圖失敗:', e);
+      }
+    }
+  };
+
+  // 從 Firebase 載入雲端參考圖
+  useEffect(() => {
+    if (uid && isFirebaseConfigured()) {
+      loadReferenceImages(uid).then(images => {
+        setCloudRefImages(images);
+      }).catch(err => console.warn('載入雲端參考圖失敗:', err));
+    }
+  }, [uid]);
 
   useEffect(() => {
     // 若 localStorage 存的是已移除的模型，重設為預設值
@@ -132,6 +180,25 @@ export default function StyleLab() {
         result = await generateImage(prompt, referenceImages, aspectRatio, keepPose, modelVersion, targetImage, memeImage);
       }
       setGeneratedImageUrl(result.output);
+
+      // 自動存到 Firebase（背景執行，不阻塞 UI）
+      if (uid && isFirebaseConfigured()) {
+        (async () => {
+          try {
+            const storageUrl = await uploadGeneratedToStorage(uid, result.output, 'image');
+            await saveGenerationRecord(uid, {
+              type: 'image',
+              model: modelVersion,
+              prompt,
+              outputUrl: storageUrl,
+              aspectRatio,
+              timestamp: new Date().toISOString()
+            });
+          } catch (e) {
+            console.warn('Firebase 生成歷史儲存失敗:', e);
+          }
+        })();
+      }
     } catch (error) {
       console.error(error);
       setErrorMsg(error.message);
@@ -226,6 +293,47 @@ export default function StyleLab() {
                           <button
                             className="user-img-delete-btn"
                             onClick={(e) => { e.stopPropagation(); removeUserUploadedImage(idx); }}
+                            title="刪除這張圖"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* ☁️ Firebase 雲端參考圖 */}
+              {cloudRefImages.length > 0 && (
+                <>
+                  <span className="upload-hint" style={{marginBottom: 4, fontSize: '0.75rem'}}>☁️ 雲端參考圖（點擊選取 / 按 × 刪除）</span>
+                  <div className="image-picker-scroll">
+                    {cloudRefImages.map((img, idx) => {
+                      const isSelected = referenceImages.includes(img.url);
+                      const toggleSelection = () => {
+                        if (isSelected) {
+                          setReferenceImages(referenceImages.filter(url => url !== img.url));
+                        } else {
+                          if (referenceImages.length >= 14) {
+                            alert('最多只能選擇 14 張參考圖片以達到最佳風格效果！');
+                            return;
+                          }
+                          setReferenceImages([...referenceImages, img.url]);
+                        }
+                      };
+                      return (
+                        <div
+                          key={`cloud-${idx}`}
+                          className={`picker-img-container ${isSelected ? 'selected' : ''}`}
+                          onClick={toggleSelection}
+                          style={{position: 'relative'}}
+                        >
+                          <img src={img.url} alt={`雲端 ${idx + 1}`} className="picker-img" />
+                          {isSelected && <div className="picker-check"><Check size={16}/></div>}
+                          <button
+                            className="user-img-delete-btn"
+                            onClick={(e) => { e.stopPropagation(); removeCloudRefImage(idx); }}
                             title="刪除這張圖"
                           >
                             <X size={12} />
