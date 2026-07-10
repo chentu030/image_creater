@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import StyleLab from './components/StyleLab';
 import BrainstormHub from './components/BrainstormHub';
 import AnimationStudio from './components/AnimationStudio';
+import HistoryGallery from './components/HistoryGallery';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import './index.css';
 
@@ -36,6 +37,7 @@ function AppContent() {
           {activeTab === 'style-lab' && <StyleLab />}
           {activeTab === 'brainstorm' && <BrainstormHub />}
           {activeTab === 'animation' && <AnimationStudio />}
+          {activeTab === 'history' && <HistoryGallery />}
         </main>
       </div>
     );
@@ -97,6 +99,7 @@ function AppContent() {
         {activeTab === 'style-lab' && <StyleLab />}
         {activeTab === 'brainstorm' && <BrainstormHub />}
         {activeTab === 'animation' && <AnimationStudio />}
+          {activeTab === 'history' && <HistoryGallery />}
       </main>
     </div>
   );
