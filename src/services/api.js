@@ -1523,9 +1523,9 @@ export const chatWithModel = async (modelId, messageHistory, webSearch = true, i
       return chatWithGrok(messageHistory, webSearch, imageDataUrls, thinkingLevel);
     case 'gemini-3.5-flash':
       if (imageDataUrls.length > 0) {
-        return chatWithAIAndImages(messageHistory, imageDataUrls, webSearch, thinkingLevel, 'gemini-3.5-flash-preview');
+        return chatWithAIAndImages(messageHistory, imageDataUrls, webSearch, thinkingLevel, 'gemini-3.5-flash');
       }
-      return chatWithAI(messageHistory, webSearch, thinkingLevel, 'gemini-3.5-flash-preview');
+      return chatWithAI(messageHistory, webSearch, thinkingLevel, 'gemini-3.5-flash');
     case 'gemini-3.1-pro':
       if (imageDataUrls.length > 0) {
         return chatWithAIAndImages(messageHistory, imageDataUrls, webSearch, thinkingLevel, 'gemini-3.1-pro-preview');
