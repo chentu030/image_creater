@@ -108,9 +108,18 @@ export default function ContentCreator({ navigateTo }) {
           loadContentChatSessions(uid),
           loadPerformanceData(uid)
         ]);
-        if (charData?.characters) setCharacters(charData);
-        if (storyData?.stories) setStories(storyData);
-        if (chatData?.sessions) setChatSessions(chatData);
+        if (charData?.characters) {
+          setCharacters(charData);
+          localStorage.setItem('cc_characters', JSON.stringify(charData));
+        }
+        if (storyData?.stories) {
+          setStories(storyData);
+          localStorage.setItem('cc_stories', JSON.stringify(storyData));
+        }
+        if (chatData?.sessions) {
+          setChatSessions(chatData);
+          localStorage.setItem('cc_chatSessions', JSON.stringify(chatData));
+        }
         if (perfData) setPerformanceData(perfData);
       } catch (e) {
         console.warn('載入社群創作資料失敗:', e);
@@ -119,19 +128,29 @@ export default function ContentCreator({ navigateTo }) {
     })();
   }, [uid, firebaseLoaded]);
 
-  // ─── 自動保存 helpers ───
+  // 首次渲染：將預設角色寫入 localStorage（確保靈感區 AI 能讀到）
+  useEffect(() => {
+    if (!localStorage.getItem('cc_characters')) {
+      localStorage.setItem('cc_characters', JSON.stringify(DEFAULT_CHARACTERS));
+    }
+  }, []);
+
+  // ─── 自動保存 helpers（同步 Firebase + localStorage）───
   const saveChars = useCallback((data) => {
     setCharacters(data);
+    localStorage.setItem('cc_characters', JSON.stringify(data));
     if (uid && isFirebaseConfigured()) saveCharactersData(uid, data).catch(console.warn);
   }, [uid]);
 
   const saveStory = useCallback((data) => {
     setStories(data);
+    localStorage.setItem('cc_stories', JSON.stringify(data));
     if (uid && isFirebaseConfigured()) saveStoriesData(uid, data).catch(console.warn);
   }, [uid]);
 
   const saveSessions = useCallback((data) => {
     setChatSessions(data);
+    localStorage.setItem('cc_chatSessions', JSON.stringify(data));
     if (uid && isFirebaseConfigured()) saveContentChatSessions(uid, data.sessions).catch(console.warn);
   }, [uid]);
 
