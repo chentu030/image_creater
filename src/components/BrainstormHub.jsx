@@ -128,6 +128,7 @@ export default function BrainstormHub({ navigateTo }) {
   const [lightboxImg, setLightboxImg] = useState(null);
   const [chatModel, setChatModel] = useLocalStorage('brainstorm_chatModel', 'gemini');
   const [webSearch, setWebSearch] = useLocalStorage('brainstorm_webSearch', true);
+  const [thinkingLevel, setThinkingLevel] = useLocalStorage('brainstorm_thinkingLevel', 'default');
   const [mobilePanel, setMobilePanel] = useState('chat'); // 'chat' | 'images' | 'topics'
   const [myArtworks, setMyArtworks] = useLocalStorage('brainstorm_myArtworks', []); // 我的作品圖片
   const [showCreativeInfo, setShowCreativeInfo] = useState(false); // 創作資訊展開
@@ -327,7 +328,7 @@ export default function BrainstormHub({ navigateTo }) {
         return msg;
       });
       const allImages = [...uploadedImages, ...myArtworks];
-      const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages);
+      const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages, thinkingLevel);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
     } catch (error) {
       console.error(error);
@@ -369,7 +370,7 @@ export default function BrainstormHub({ navigateTo }) {
       });
       // 合併參考圖 + 我的作品圖
       const allImages = [...(uploadedImages.length > 0 ? uploadedImages : []), ...myArtworks];
-      const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages);
+      const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages, thinkingLevel);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
     } catch (error) {
       console.error(error);
@@ -697,6 +698,18 @@ export default function BrainstormHub({ navigateTo }) {
                 >
                   🌐 {webSearch ? 'ON' : 'OFF'}
                 </button>
+                <select
+                  className="glass-input chat-model-select"
+                  value={thinkingLevel}
+                  onChange={e => setThinkingLevel(e.target.value)}
+                  title="AI 思考深度"
+                  style={{ maxWidth: 110 }}
+                >
+                  <option value="default">🧠 預設</option>
+                  <option value="low">⚡ 快速</option>
+                  <option value="medium">💭 適中</option>
+                  <option value="high">🔬 深度</option>
+                </select>
               </div>
               <div className="chat-input-row">
                 <input

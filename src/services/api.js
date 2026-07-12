@@ -1074,7 +1074,7 @@ export const CHAT_MODELS = [
 ];
 
 // --- Gemini (Vertex AI) ---
-export const chatWithAI = async (messageHistory, webSearch = true) => {
+export const chatWithAI = async (messageHistory, webSearch = true, thinkingLevel = 'default') => {
   const apiKey = getNextVertexKey();
   if (!apiKey) throw new Error('找不到 Vertex AI API Key');
 
@@ -1087,6 +1087,11 @@ export const chatWithAI = async (messageHistory, webSearch = true) => {
   const body = { contents };
   if (webSearch) {
     body.tools = [{ googleSearch: {} }];
+  }
+  // 思考等級設定
+  const geminiThinkingMap = { low: 'LOW', medium: 'MEDIUM', high: 'HIGH' };
+  if (thinkingLevel !== 'default' && geminiThinkingMap[thinkingLevel]) {
+    body.generationConfig = { ...body.generationConfig, thinkingConfig: { thinkingLevel: geminiThinkingMap[thinkingLevel] } };
   }
 
   const response = await fetch(url, {
@@ -1109,7 +1114,7 @@ export const chatWithAI = async (messageHistory, webSearch = true) => {
 };
 
 // --- Gemini with Images ---
-export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], webSearch = true) => {
+export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], webSearch = true, thinkingLevel = 'default') => {
   const apiKey = getNextVertexKey();
   if (!apiKey) throw new Error('找不到 Vertex AI API Key');
 
@@ -1148,6 +1153,10 @@ export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], we
   if (webSearch) {
     body.tools = [{ googleSearch: {} }];
   }
+  const geminiThinkingMap = { low: 'LOW', medium: 'MEDIUM', high: 'HIGH' };
+  if (thinkingLevel !== 'default' && geminiThinkingMap[thinkingLevel]) {
+    body.generationConfig = { ...body.generationConfig, thinkingConfig: { thinkingLevel: geminiThinkingMap[thinkingLevel] } };
+  }
 
   const response = await fetch(url, {
     method: 'POST',
@@ -1172,7 +1181,7 @@ export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], we
 // 開發環境：走 Vite proxy（/api/claude → api.anthropic.com）
 const isDev = import.meta.env.DEV;
 
-export const chatWithClaude = async (messageHistory, webSearch = true, modelName = 'claude-sonnet-5', imageDataUrls = []) => {
+export const chatWithClaude = async (messageHistory, webSearch = true, modelName = 'claude-sonnet-5', imageDataUrls = [], thinkingLevel = 'default') => {
   if (isDev && !CLAUDE_API_KEY) throw new Error('找不到 Claude API Key');
 
   // 預處理：將 Firebase Storage URL 等非 data URL 統一轉為 data URL
@@ -1240,6 +1249,12 @@ export const chatWithClaude = async (messageHistory, webSearch = true, modelName
     max_tokens: 4096,
     messages
   };
+  // Claude 思考等級
+  const claudeEffortMap = { low: 'low', medium: 'medium', high: 'high' };
+  if (thinkingLevel !== 'default' && claudeEffortMap[thinkingLevel]) {
+    body.thinking = { type: 'adaptive', effort: claudeEffortMap[thinkingLevel] };
+    body.max_tokens = 16000; // 啟用 thinking 時需要更大的 token 限制
+  }
 
   // 聯網搜尋：使用 Anthropic 的 web_search server tool
   if (webSearch) {
@@ -1303,7 +1318,7 @@ export const chatWithClaude = async (messageHistory, webSearch = true, modelName
 // --- Grok (xAI Responses API) ---
 // 生產環境：走 Vercel Serverless Function（伺服器端代理）
 // 開發環境：走 Vite proxy（/api/grok → api.x.ai）
-export const chatWithGrok = async (messageHistory, webSearch = true, imageDataUrls = []) => {
+export const chatWithGrok = async (messageHistory, webSearch = true, imageDataUrls = [], thinkingLevel = 'default') => {
   if (isDev && !GROK_API_KEY) throw new Error('找不到 Grok API Key');
 
   // 預處理：將 Firebase Storage URL 等非 data URL 統一轉為 data URL
@@ -1356,6 +1371,11 @@ export const chatWithGrok = async (messageHistory, webSearch = true, imageDataUr
     model: 'grok-4.5',
     input
   };
+  // Grok 思考等級
+  const grokEffortMap = { low: 'low', medium: 'medium', high: 'high' };
+  if (thinkingLevel !== 'default' && grokEffortMap[thinkingLevel]) {
+    body.reasoning_effort = grokEffortMap[thinkingLevel];
+  }
 
   // 聯網搜尋：使用 xAI 的 web_search tool（Responses API）
   if (webSearch) {
@@ -1467,13 +1487,12 @@ ${text}`;
 };
 
 // --- 統一路由：根據 modelId 分派到對應 API ---
-export const chatWithModel = async (modelId, messageHistory, webSearch = true, imageDataUrls = []) => {
+export const chatWithModel = async (modelId, messageHistory, webSearch = true, imageDataUrls = [], thinkingLevel = 'default') => {
   // 全局記憶注入：自動讀取 localStorage 的記憶檔，拼到最後一則 user 訊息
   try {
     const globalMemory = localStorage.getItem('ai_global_memory');
     if (globalMemory && globalMemory.trim()) {
       messageHistory = messageHistory.map((msg, idx, arr) => {
-        // 找最後一則 user 訊息，在其 content 前面加上記憶
         const isLastUser = msg.role === 'user' && !arr.slice(idx + 1).some(m => m.role === 'user');
         if (isLastUser) {
           const prefix = `[全局記憶 — 以下是使用者預設的背景資訊，請在回覆時參考]\n${globalMemory.trim()}\n\n---\n`;
@@ -1487,19 +1506,19 @@ export const chatWithModel = async (modelId, messageHistory, webSearch = true, i
 
   switch (modelId) {
     case 'claude':
-      return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-5', imageDataUrls);
+      return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-5', imageDataUrls, thinkingLevel);
     case 'claude-fable':
-      return chatWithClaude(messageHistory, webSearch, 'claude-fable-5', imageDataUrls);
+      return chatWithClaude(messageHistory, webSearch, 'claude-fable-5', imageDataUrls, thinkingLevel);
     case 'claude-opus':
-      return chatWithClaude(messageHistory, webSearch, 'claude-opus-4-8', imageDataUrls);
+      return chatWithClaude(messageHistory, webSearch, 'claude-opus-4-8', imageDataUrls, thinkingLevel);
     case 'grok':
-      return chatWithGrok(messageHistory, webSearch, imageDataUrls);
+      return chatWithGrok(messageHistory, webSearch, imageDataUrls, thinkingLevel);
     case 'gemini':
     default:
       if (imageDataUrls.length > 0) {
-        return chatWithAIAndImages(messageHistory, imageDataUrls, webSearch);
+        return chatWithAIAndImages(messageHistory, imageDataUrls, webSearch, thinkingLevel);
       }
-      return chatWithAI(messageHistory, webSearch);
+      return chatWithAI(messageHistory, webSearch, thinkingLevel);
   }
 };
 
