@@ -6,6 +6,7 @@ import {
   Upload, BarChart3, BookOpen, Clapperboard, Theater, Loader2, X, Check
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { chatWithModel, CHAT_MODELS } from '../services/api';
 import {
   saveCharactersData, loadCharactersData,
@@ -380,7 +381,7 @@ ${otherChars || '(這是第一個角色)'}
 
                   {aiResult?.idx === idx && (
                     <div className="cc-ai-result">
-                      <ReactMarkdown>{aiResult.text}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiResult.text}</ReactMarkdown>
                       {aiResult.text.includes('```json') && (
                         <button className="cc-btn cc-btn-primary cc-btn-full" style={{ marginTop: 12 }} onClick={() => applyAIResult(idx)}>
                           <Check size={14} /> 一鍵套用 AI 建議
@@ -496,7 +497,7 @@ ${specialNote ? `特別需求: ${specialNote}` : ''}
 
       {result && (
         <div className="cc-result-box">
-          <ReactMarkdown>{result}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
           {/* 跨區快捷按鈕 */}
           <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
             <button className="cc-btn cc-btn-primary" onClick={() => navigateTo?.('style-lab', { prompt: result.slice(0, 500) })}>
@@ -667,7 +668,7 @@ ${convHistory}
               <div key={i} className={`cc-chat-msg ${m.role}`}>
                 {m.role === 'assistant' ? (
                   <>
-                    <ReactMarkdown>{m.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                     <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                       <button className="cc-btn cc-btn-secondary" style={{ padding: '4px 10px', fontSize: 11 }}
                         onClick={() => navigateTo?.('style-lab', { prompt: m.content.slice(0, 500) })}>
@@ -781,7 +782,7 @@ function StoryLibPanel({ stories, saveStory }) {
               {expandedId === story.id && (
                 <div className="cc-story-body">
                   {story.characters?.length > 0 && <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>角色: {story.characters.join(', ')}</p>}
-                  <ReactMarkdown>{story.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{story.content}</ReactMarkdown>
                   <button className="cc-btn cc-btn-danger" style={{ marginTop: 12 }} onClick={() => handleDelete(story.id)}>
                     <Trash2 size={14} /> 刪除
                   </button>
@@ -907,7 +908,7 @@ ${allTexts}
 
           {aiResult && (
             <div className="cc-ai-result">
-              <ReactMarkdown>{aiResult}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiResult}</ReactMarkdown>
             </div>
           )}
         </>

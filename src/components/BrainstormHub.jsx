@@ -6,6 +6,7 @@ import {
   BookOpen, Bookmark, Trash2, Edit3, Check, GitBranch, Upload, Copy, Download
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { chatWithModel, CHAT_MODELS, summarizeToMemory, autoNameTopic } from '../services/api';
 import {
   saveBrainstormTopics,
@@ -602,7 +603,7 @@ export default function BrainstormHub({ navigateTo }) {
                       </div>
                     )}
                     <div className="markdown-body">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     </div>
                     {/* 複製按鈕 */}
                     <button
