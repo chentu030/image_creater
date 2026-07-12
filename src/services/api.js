@@ -1020,6 +1020,8 @@ const GROK_API_KEY = import.meta.env.VITE_GROK_API_KEY;
 export const CHAT_MODELS = [
   { id: 'gemini', name: 'Gemini 3 Flash', provider: 'google' },
   { id: 'claude', name: 'Claude Sonnet 5', provider: 'anthropic' },
+  { id: 'claude-fable', name: 'Claude Fable 5', provider: 'anthropic' },
+  { id: 'claude-opus', name: 'Claude Opus 4.8', provider: 'anthropic' },
   { id: 'grok', name: 'Grok 4.5', provider: 'xai' },
 ];
 
@@ -1105,8 +1107,12 @@ export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], we
 };
 
 // --- Claude (Anthropic Messages API) ---
-export const chatWithClaude = async (messageHistory, webSearch = true) => {
-  if (!CLAUDE_API_KEY) throw new Error('找不到 Claude API Key');
+// 生產環境：走 Vercel Serverless Function（伺服器端代理，避免瀏覽器 403）
+// 開發環境：走 Vite proxy（/api/claude → api.anthropic.com）
+const isDev = import.meta.env.DEV;
+
+export const chatWithClaude = async (messageHistory, webSearch = true, modelName = 'claude-sonnet-5') => {
+  if (isDev && !CLAUDE_API_KEY) throw new Error('找不到 Claude API Key');
 
   // Anthropic 格式：messages 陣列，role 為 user / assistant
   // 過濾掉空訊息，確保首則為 user
@@ -1123,7 +1129,7 @@ export const chatWithClaude = async (messageHistory, webSearch = true) => {
   }
 
   const body = {
-    model: 'claude-sonnet-5',
+    model: modelName,
     max_tokens: 4096,
     messages
   };
@@ -1137,14 +1143,19 @@ export const chatWithClaude = async (messageHistory, webSearch = true) => {
     }];
   }
 
-  const response = await fetch('/api/claude/v1/messages', {
+  // 生產環境：用 Serverless Function 代理（API key 在伺服器端）
+  // 開發環境：用 Vite proxy 直連（API key 帶在 header）
+  const url = isDev ? '/api/claude/v1/messages' : '/api/claude-messages';
+  const headers = { 'Content-Type': 'application/json' };
+  if (isDev) {
+    headers['x-api-key'] = CLAUDE_API_KEY;
+    headers['anthropic-version'] = '2023-06-01';
+    headers['anthropic-dangerous-direct-browser-access'] = 'true';
+  }
+
+  const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'x-api-key': CLAUDE_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify(body)
   });
 
@@ -1168,8 +1179,10 @@ export const chatWithClaude = async (messageHistory, webSearch = true) => {
 };
 
 // --- Grok (xAI Responses API) ---
+// 生產環境：走 Vercel Serverless Function（伺服器端代理）
+// 開發環境：走 Vite proxy（/api/grok → api.x.ai）
 export const chatWithGrok = async (messageHistory, webSearch = true) => {
-  if (!GROK_API_KEY) throw new Error('找不到 Grok API Key');
+  if (isDev && !GROK_API_KEY) throw new Error('找不到 Grok API Key');
 
   // xAI Responses API 格式
   const input = messageHistory
@@ -1194,12 +1207,17 @@ export const chatWithGrok = async (messageHistory, webSearch = true) => {
     body.tools = [{ type: 'web_search' }];
   }
 
-  const response = await fetch('/api/grok/v1/responses', {
+  // 生產環境：用 Serverless Function 代理
+  // 開發環境：用 Vite proxy 直連
+  const url = isDev ? '/api/grok/v1/responses' : '/api/grok-responses';
+  const headers = { 'Content-Type': 'application/json' };
+  if (isDev) {
+    headers['Authorization'] = `Bearer ${GROK_API_KEY}`;
+  }
+
+  const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${GROK_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify(body)
   });
 
@@ -1236,7 +1254,11 @@ export const chatWithGrok = async (messageHistory, webSearch = true) => {
 export const chatWithModel = async (modelId, messageHistory, webSearch = true, imageDataUrls = []) => {
   switch (modelId) {
     case 'claude':
-      return chatWithClaude(messageHistory, webSearch);
+      return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-5');
+    case 'claude-fable':
+      return chatWithClaude(messageHistory, webSearch, 'claude-fable-5');
+    case 'claude-opus':
+      return chatWithClaude(messageHistory, webSearch, 'claude-opus-4-8');
     case 'grok':
       return chatWithGrok(messageHistory, webSearch);
     case 'gemini':
