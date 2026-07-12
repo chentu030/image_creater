@@ -796,7 +796,13 @@ function dataUrlToInlineData(dataUrl) {
 
 // 一般 URL（含本地 /local-images/...）→ inlineData
 async function urlToInlineData(url) {
-  const res = await fetch(url);
+  // Firebase Storage URL → 走 proxy 避免 CORS
+  let fetchUrl = url;
+  if (url.includes('firebasestorage.googleapis.com')) {
+    fetchUrl = url.replace('https://firebasestorage.googleapis.com', '/api/firebase-storage');
+  }
+  const res = await fetch(fetchUrl);
+  if (!res.ok) throw new Error('Failed to fetch image: ' + res.status);
   const blob = await res.blob();
   const dataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -805,6 +811,48 @@ async function urlToInlineData(url) {
     reader.readAsDataURL(blob);
   });
   return dataUrlToInlineData(dataUrl);
+}
+
+// 統一圖片解析：支援 data URL 和 HTTP(S) URL（含 Firebase Storage）
+async function resolveImageToInlineData(imgUrl) {
+  if (!imgUrl) return null;
+  // data URL → 同步解析
+  if (imgUrl.startsWith('data:')) {
+    return dataUrlToInlineData(imgUrl);
+  }
+  // HTTP(S) URL → 下載後轉 base64
+  if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('/')) {
+    try {
+      return await urlToInlineData(imgUrl);
+    } catch (e) {
+      console.warn('resolveImageToInlineData fetch failed:', imgUrl, e);
+      return null;
+    }
+  }
+  return null;
+}
+
+// 批次預處理：將所有圖片 URL（含 Firebase Storage URL）統一轉為 data URL
+// 這樣下游的 dataUrlToInlineData 就能正常解析
+async function preResolveImages(urls) {
+  if (!urls || urls.length === 0) return [];
+  const results = [];
+  for (const url of urls) {
+    if (!url) continue;
+    if (url.startsWith('data:')) {
+      results.push(url);
+    } else {
+      try {
+        const inline = await resolveImageToInlineData(url);
+        if (inline) {
+          results.push(`data:${inline.mimeType};base64,${inline.data}`);
+        }
+      } catch (e) {
+        console.warn('preResolveImages failed for:', url, e);
+      }
+    }
+  }
+  return results;
 }
 
 // --- 4.5 Vertex AI 生圖 ---
@@ -1062,6 +1110,14 @@ export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], we
   const apiKey = getNextVertexKey();
   if (!apiKey) throw new Error('找不到 Vertex AI API Key');
 
+  // 預處理：將 Firebase Storage URL 等非 data URL 統一轉為 data URL
+  imageDataUrls = await preResolveImages(imageDataUrls);
+  for (const msg of messageHistory) {
+    if (msg.images && msg.images.length > 0) {
+      msg.images = await preResolveImages(msg.images);
+    }
+  }
+
   const url = `/api/vertex/publishers/google/models/gemini-3-flash-preview:generateContent`;
   const contents = messageHistory.map(msg => {
     const parts = [];
@@ -1114,7 +1170,14 @@ const isDev = import.meta.env.DEV;
 export const chatWithClaude = async (messageHistory, webSearch = true, modelName = 'claude-sonnet-5', imageDataUrls = []) => {
   if (isDev && !CLAUDE_API_KEY) throw new Error('找不到 Claude API Key');
 
-  // Anthropic 格式：messages 陣列，role 為 user / assistant
+  // 預處理：將 Firebase Storage URL 等非 data URL 統一轉為 data URL
+  imageDataUrls = await preResolveImages(imageDataUrls);
+  for (const msg of messageHistory) {
+    if (msg.images && msg.images.length > 0) {
+      msg.images = await preResolveImages(msg.images);
+    }
+  }
+
   // 過濾掉空訊息，確保首則為 user
   const messages = messageHistory
     .filter(msg => msg.content && msg.content.trim())
@@ -1222,6 +1285,14 @@ export const chatWithClaude = async (messageHistory, webSearch = true, modelName
 // 開發環境：走 Vite proxy（/api/grok → api.x.ai）
 export const chatWithGrok = async (messageHistory, webSearch = true, imageDataUrls = []) => {
   if (isDev && !GROK_API_KEY) throw new Error('找不到 Grok API Key');
+
+  // 預處理：將 Firebase Storage URL 等非 data URL 統一轉為 data URL
+  imageDataUrls = await preResolveImages(imageDataUrls);
+  for (const msg of messageHistory) {
+    if (msg.images && msg.images.length > 0) {
+      msg.images = await preResolveImages(msg.images);
+    }
+  }
 
   // xAI Responses API 格式
   const input = messageHistory
