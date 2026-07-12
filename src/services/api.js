@@ -1387,6 +1387,23 @@ export const chatWithGrok = async (messageHistory, webSearch = true, imageDataUr
 
 // --- 統一路由：根據 modelId 分派到對應 API ---
 export const chatWithModel = async (modelId, messageHistory, webSearch = true, imageDataUrls = []) => {
+  // 全局記憶注入：自動讀取 localStorage 的記憶檔，拼到最後一則 user 訊息
+  try {
+    const globalMemory = localStorage.getItem('ai_global_memory');
+    if (globalMemory && globalMemory.trim()) {
+      messageHistory = messageHistory.map((msg, idx, arr) => {
+        // 找最後一則 user 訊息，在其 content 前面加上記憶
+        const isLastUser = msg.role === 'user' && !arr.slice(idx + 1).some(m => m.role === 'user');
+        if (isLastUser) {
+          const prefix = `[全局記憶 — 以下是使用者預設的背景資訊，請在回覆時參考]\n${globalMemory.trim()}\n\n---\n`;
+          const content = typeof msg.content === 'string' ? prefix + msg.content : msg.content;
+          return { ...msg, content };
+        }
+        return msg;
+      });
+    }
+  } catch { /* ignore */ }
+
   switch (modelId) {
     case 'claude':
       return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-5', imageDataUrls);
