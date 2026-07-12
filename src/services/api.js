@@ -1067,18 +1067,22 @@ const GROK_API_KEY = import.meta.env.VITE_GROK_API_KEY;
 // 可用的聊天模型
 export const CHAT_MODELS = [
   { id: 'gemini', name: 'Gemini 3 Flash', provider: 'google' },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'google' },
+  { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', provider: 'google' },
   { id: 'claude', name: 'Claude Sonnet 5', provider: 'anthropic' },
+  { id: 'claude-sonnet-4.8', name: 'Claude Sonnet 4.8', provider: 'anthropic' },
+  { id: 'claude-haiku', name: 'Claude Haiku 4.5', provider: 'anthropic' },
   { id: 'claude-fable', name: 'Claude Fable 5', provider: 'anthropic' },
   { id: 'claude-opus', name: 'Claude Opus 4.8', provider: 'anthropic' },
   { id: 'grok', name: 'Grok 4.5', provider: 'xai' },
 ];
 
 // --- Gemini (Vertex AI) ---
-export const chatWithAI = async (messageHistory, webSearch = true, thinkingLevel = 'default') => {
+export const chatWithAI = async (messageHistory, webSearch = true, thinkingLevel = 'default', modelName = 'gemini-3-flash-preview') => {
   const apiKey = getNextVertexKey();
   if (!apiKey) throw new Error('找不到 Vertex AI API Key');
 
-  const url = `/api/vertex/publishers/google/models/gemini-3-flash-preview:generateContent`;
+  const url = `/api/vertex/publishers/google/models/${modelName}:generateContent`;
   const contents = messageHistory.map(msg => ({
     role: msg.role === 'system' ? 'model' : 'user',
     parts: [{ text: msg.content }]
@@ -1114,7 +1118,7 @@ export const chatWithAI = async (messageHistory, webSearch = true, thinkingLevel
 };
 
 // --- Gemini with Images ---
-export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], webSearch = true, thinkingLevel = 'default') => {
+export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], webSearch = true, thinkingLevel = 'default', modelName = 'gemini-3-flash-preview') => {
   const apiKey = getNextVertexKey();
   if (!apiKey) throw new Error('找不到 Vertex AI API Key');
 
@@ -1126,7 +1130,7 @@ export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], we
     }
   }
 
-  const url = `/api/vertex/publishers/google/models/gemini-3-flash-preview:generateContent`;
+  const url = `/api/vertex/publishers/google/models/${modelName}:generateContent`;
   const contents = messageHistory.map(msg => {
     const parts = [];
     if (msg.images && msg.images.length > 0) {
@@ -1507,12 +1511,26 @@ export const chatWithModel = async (modelId, messageHistory, webSearch = true, i
   switch (modelId) {
     case 'claude':
       return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-5', imageDataUrls, thinkingLevel);
+    case 'claude-sonnet-4.8':
+      return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-4-8', imageDataUrls, thinkingLevel);
+    case 'claude-haiku':
+      return chatWithClaude(messageHistory, webSearch, 'claude-haiku-4-5', imageDataUrls, thinkingLevel);
     case 'claude-fable':
       return chatWithClaude(messageHistory, webSearch, 'claude-fable-5', imageDataUrls, thinkingLevel);
     case 'claude-opus':
       return chatWithClaude(messageHistory, webSearch, 'claude-opus-4-8', imageDataUrls, thinkingLevel);
     case 'grok':
       return chatWithGrok(messageHistory, webSearch, imageDataUrls, thinkingLevel);
+    case 'gemini-3.5-flash':
+      if (imageDataUrls.length > 0) {
+        return chatWithAIAndImages(messageHistory, imageDataUrls, webSearch, thinkingLevel, 'gemini-3.5-flash-preview');
+      }
+      return chatWithAI(messageHistory, webSearch, thinkingLevel, 'gemini-3.5-flash-preview');
+    case 'gemini-3.1-pro':
+      if (imageDataUrls.length > 0) {
+        return chatWithAIAndImages(messageHistory, imageDataUrls, webSearch, thinkingLevel, 'gemini-3.1-pro-preview');
+      }
+      return chatWithAI(messageHistory, webSearch, thinkingLevel, 'gemini-3.1-pro-preview');
     case 'gemini':
     default:
       if (imageDataUrls.length > 0) {
