@@ -352,9 +352,15 @@ export default function BrainstormHub({ navigateTo }) {
     setIsLoading(true);
 
     try {
+      // 注入創作上下文（角色、劇情、最近討論），讓 AI 了解使用者的創作世界
+      const fullHistory = [
+        { role: 'user', content: getInspireSystemPrompt() },
+        { role: 'system', content: '好的，我了解你的角色和創作方向了！隨時可以聊，我會根據你的角色宇宙給建議。' },
+        ...newMessages
+      ];
       // 如果有圖片，用圖片版 API
       const hasImages = uploadedImages.length > 0;
-      const aiReply = await chatWithModel(chatModel, newMessages, webSearch, hasImages ? uploadedImages : []);
+      const aiReply = await chatWithModel(chatModel, fullHistory, webSearch, hasImages ? uploadedImages : []);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
     } catch (error) {
       console.error(error);
