@@ -1102,7 +1102,10 @@ export const chatWithAI = async (messageHistory, webSearch = true) => {
 
   const data = await response.json();
   const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '(無回覆)';
-  return { role: 'system', content: replyText };
+  // 提取搜尋關鍵字
+  const searchQueries = data.candidates?.[0]?.groundingMetadata?.webSearchQueries || [];
+  const searchSources = (data.candidates?.[0]?.groundingMetadata?.groundingChunks || []).map(c => c.web?.title || c.web?.uri).filter(Boolean);
+  return { role: 'system', content: replyText, searchQueries, searchSources };
 };
 
 // --- Gemini with Images ---
@@ -1159,7 +1162,9 @@ export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], we
 
   const data = await response.json();
   const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || '(無回覆)';
-  return { role: 'system', content: replyText };
+  const searchQueries = data.candidates?.[0]?.groundingMetadata?.webSearchQueries || [];
+  const searchSources = (data.candidates?.[0]?.groundingMetadata?.groundingChunks || []).map(c => c.web?.title || c.web?.uri).filter(Boolean);
+  return { role: 'system', content: replyText, searchQueries, searchSources };
 };
 
 // --- Claude (Anthropic Messages API) ---
@@ -1270,14 +1275,29 @@ export const chatWithClaude = async (messageHistory, webSearch = true, modelName
 
   // Claude 回傳格式：content 為陣列，取 text type 的內容
   let replyText = '(無回覆)';
+  const searchQueries = [];
+  const searchSources = [];
   if (data.content && Array.isArray(data.content)) {
+    // 提取搜尋關鍵字（web_search tool_use 的 input.query）
+    for (const block of data.content) {
+      if (block.type === 'server_tool_use' && block.name === 'web_search') {
+        if (block.input?.query) searchQueries.push(block.input.query);
+      }
+      if (block.type === 'web_search_tool_result' && block.content) {
+        for (const item of block.content) {
+          if (item.type === 'web_search_result' && item.title) {
+            searchSources.push(item.title);
+          }
+        }
+      }
+    }
     const textParts = data.content.filter(c => c.type === 'text');
     if (textParts.length > 0) {
       replyText = textParts.map(t => t.text).join('\n');
     }
   }
 
-  return { role: 'system', content: replyText };
+  return { role: 'system', content: replyText, searchQueries, searchSources };
 };
 
 // --- Grok (xAI Responses API) ---
@@ -1365,7 +1385,20 @@ export const chatWithGrok = async (messageHistory, webSearch = true, imageDataUr
 
   // xAI Responses API 回傳格式：output 為陣列
   let replyText = '(無回覆)';
+  const searchQueries = [];
+  const searchSources = [];
   if (data.output && Array.isArray(data.output)) {
+    // 提取搜尋關鍵字
+    for (const item of data.output) {
+      if (item.type === 'web_search_call' && item.query) {
+        searchQueries.push(item.query);
+      }
+      if (item.type === 'web_search_result' && item.results) {
+        for (const r of item.results) {
+          if (r.title) searchSources.push(r.title);
+        }
+      }
+    }
     const messageParts = data.output.filter(o => o.type === 'message');
     if (messageParts.length > 0) {
       const lastMsg = messageParts[messageParts.length - 1];
@@ -1377,12 +1410,12 @@ export const chatWithGrok = async (messageHistory, webSearch = true, imageDataUr
       }
     }
   }
-  // fallback: 如果有 output_text 直接在頂層
+  // fallback
   if (replyText === '(無回覆)' && data.output_text) {
     replyText = data.output_text;
   }
 
-  return { role: 'system', content: replyText };
+  return { role: 'system', content: replyText, searchQueries, searchSources };
 };
 
 // --- 統一路由：根據 modelId 分派到對應 API ---

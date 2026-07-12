@@ -539,6 +539,22 @@ export default function BrainstormHub({ navigateTo }) {
                     <div className="markdown-body">
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
+                    {/* 搜尋關鍵字展示 */}
+                    {msg.searchQueries && msg.searchQueries.length > 0 && (
+                      <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, fontSize: 11, color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>🔍 AI 搜尋關鍵字：</div>
+                        {msg.searchQueries.map((q, qi) => (
+                          <span key={qi} style={{ display: 'inline-block', background: 'rgba(99,102,241,0.15)', color: 'var(--accent-color)', padding: '2px 8px', borderRadius: 12, margin: '2px 4px 2px 0', fontSize: 11 }}>
+                            {q}
+                          </span>
+                        ))}
+                        {msg.searchSources && msg.searchSources.length > 0 && (
+                          <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-secondary)', opacity: 0.7 }}>
+                            📄 參考：{msg.searchSources.slice(0, 5).join(' · ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {msg.role === 'system' && idx > 0 && (
                       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                         <button className="btn-secondary transfer-prompt-btn"
