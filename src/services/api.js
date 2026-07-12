@@ -1070,7 +1070,6 @@ export const CHAT_MODELS = [
   { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'google' },
   { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', provider: 'google' },
   { id: 'claude', name: 'Claude Sonnet 5', provider: 'anthropic' },
-  { id: 'claude-sonnet-4.8', name: 'Claude Sonnet 4.8', provider: 'anthropic' },
   { id: 'claude-haiku', name: 'Claude Haiku 4.5', provider: 'anthropic' },
   { id: 'claude-fable', name: 'Claude Fable 5', provider: 'anthropic' },
   { id: 'claude-opus', name: 'Claude Opus 4.8', provider: 'anthropic' },
@@ -1546,8 +1545,6 @@ export const chatWithModel = async (modelId, messageHistory, webSearch = true, i
   switch (modelId) {
     case 'claude':
       return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-5', imageDataUrls, thinkingLevel);
-    case 'claude-sonnet-4.8':
-      return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-4-8', imageDataUrls, thinkingLevel);
     case 'claude-haiku':
       return chatWithClaude(messageHistory, webSearch, 'claude-haiku-4-5', imageDataUrls, thinkingLevel);
     case 'claude-fable':
