@@ -14,9 +14,19 @@ function AppContent() {
   const [theme, setTheme] = useLocalStorage('app_theme', 'dark');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, loading, login, logout, isConfigured, displayName, photoURL } = useAuth();
+  // 跨區導航系統：帶資料跳轉到其他 tab
+  const [navPayload, setNavPayload] = useState(null);
 
   // 切換 tab 後自動收合 sidebar
   const handleSetActiveTab = useCallback((tab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+    setNavPayload(null); // 手動切 tab 時清除 payload
+  }, []);
+
+  // 跨區導航：帶資料跳轉
+  const navigateTo = useCallback((tab, payload = null) => {
+    setNavPayload(payload);
     setActiveTab(tab);
     setSidebarOpen(false);
   }, []);
@@ -35,9 +45,9 @@ function AppContent() {
           <span /><span /><span />
         </button>
         <main className="main-content">
-          {activeTab === 'style-lab' && <StyleLab />}
-          {activeTab === 'brainstorm' && <BrainstormHub />}
-          {activeTab === 'content-creator' && <ContentCreator />}
+          {activeTab === 'style-lab' && <StyleLab navPayload={navPayload} onPayloadConsumed={() => setNavPayload(null)} />}
+          {activeTab === 'brainstorm' && <BrainstormHub navigateTo={navigateTo} />}
+          {activeTab === 'content-creator' && <ContentCreator navigateTo={navigateTo} />}
           {activeTab === 'animation' && <AnimationStudio />}
           {activeTab === 'history' && <HistoryGallery />}
         </main>
@@ -98,11 +108,11 @@ function AppContent() {
         <span /><span /><span />
       </button>
       <main className="main-content">
-        {activeTab === 'style-lab' && <StyleLab />}
-        {activeTab === 'brainstorm' && <BrainstormHub />}
-        {activeTab === 'content-creator' && <ContentCreator />}
+        {activeTab === 'style-lab' && <StyleLab navPayload={navPayload} onPayloadConsumed={() => setNavPayload(null)} />}
+        {activeTab === 'brainstorm' && <BrainstormHub navigateTo={navigateTo} />}
+        {activeTab === 'content-creator' && <ContentCreator navigateTo={navigateTo} />}
         {activeTab === 'animation' && <AnimationStudio />}
-          {activeTab === 'history' && <HistoryGallery />}
+        {activeTab === 'history' && <HistoryGallery />}
       </main>
     </div>
   );

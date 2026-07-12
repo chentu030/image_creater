@@ -79,7 +79,7 @@ const getAnimalEmoji = (species) => ANIMAL_EMOJI[species] || '🐾';
 // ID 生成
 const genId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-export default function ContentCreator() {
+export default function ContentCreator({ navigateTo }) {
   const { uid } = useAuth();
   const [activeTab, setActiveTab] = useLocalStorage('cc_activeTab', 'characters');
   const [chatModel, setChatModel] = useLocalStorage('cc_chatModel', 'gemini');
@@ -90,6 +90,12 @@ export default function ContentCreator() {
   const [chatSessions, setChatSessions] = useState({ sessions: [] });
   const [performanceData, setPerformanceData] = useState(null);
   const [firebaseLoaded, setFirebaseLoaded] = useState(false);
+
+  // 從靈感區跳過來時，自動切到劇情討論 tab
+  useEffect(() => {
+    const pending = localStorage.getItem('cc_pending_chat_msg');
+    if (pending) setActiveTab('comic-chat');
+  }, []);
 
   // ─── 從 Firebase 載入 ───
   useEffect(() => {
@@ -154,10 +160,10 @@ export default function ContentCreator() {
         <CharactersPanel characters={characters} saveChars={saveChars} chatModel={chatModel} setChatModel={setChatModel} />
       )}
       {activeTab === 'inspire' && (
-        <InspirePanel characters={characters} chatModel={chatModel} setChatModel={setChatModel} />
+        <InspirePanel characters={characters} chatModel={chatModel} setChatModel={setChatModel} navigateTo={navigateTo} />
       )}
       {activeTab === 'comic-chat' && (
-        <ComicChatPanel characters={characters} stories={stories} saveStory={saveStory} chatSessions={chatSessions} saveSessions={saveSessions} chatModel={chatModel} setChatModel={setChatModel} />
+        <ComicChatPanel characters={characters} stories={stories} saveStory={saveStory} chatSessions={chatSessions} saveSessions={saveSessions} chatModel={chatModel} setChatModel={setChatModel} navigateTo={navigateTo} />
       )}
       {activeTab === 'story-lib' && (
         <StoryLibPanel stories={stories} saveStory={saveStory} />
@@ -392,7 +398,7 @@ ${otherChars || '(這是第一個角色)'}
 // ═══════════════════════════════════════
 // Tab 2: 每日動圖靈感
 // ═══════════════════════════════════════
-function InspirePanel({ characters, chatModel, setChatModel }) {
+function InspirePanel({ characters, chatModel, setChatModel, navigateTo }) {
   const [theme, setTheme] = useState('隨機驚喜');
   const [numIdeas, setNumIdeas] = useState(5);
   const [specialNote, setSpecialNote] = useState('');
@@ -472,6 +478,15 @@ ${specialNote ? `特別需求: ${specialNote}` : ''}
       {result && (
         <div className="cc-result-box">
           <ReactMarkdown>{result}</ReactMarkdown>
+          {/* 跨區快捷按鈕 */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+            <button className="cc-btn cc-btn-primary" onClick={() => navigateTo?.('style-lab', { prompt: result.slice(0, 500) })}>
+              🎨 送到繪圖區
+            </button>
+            <button className="cc-btn cc-btn-secondary" onClick={() => navigateTo?.('brainstorm', { initialMessage: result.slice(0, 500) })}>
+              💡 送到靈感區
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -481,7 +496,7 @@ ${specialNote ? `特別需求: ${specialNote}` : ''}
 // ═══════════════════════════════════════
 // Tab 3: 漫畫劇情討論
 // ═══════════════════════════════════════
-function ComicChatPanel({ characters, stories, saveStory, chatSessions, saveSessions, chatModel, setChatModel }) {
+function ComicChatPanel({ characters, stories, saveStory, chatSessions, saveSessions, chatModel, setChatModel, navigateTo }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -491,6 +506,15 @@ function ComicChatPanel({ characters, stories, saveStory, chatSessions, saveSess
   const [storyTitle, setStoryTitle] = useState('');
   const [storyType, setStoryType] = useState('獨立');
   const messagesEndRef = useRef(null);
+
+  // 接收來自靈感區的跨區訊息
+  useEffect(() => {
+    const pending = localStorage.getItem('cc_pending_chat_msg');
+    if (pending) {
+      setInput(`根據這個靈感來討論劇情：\n${pending}`);
+      localStorage.removeItem('cc_pending_chat_msg');
+    }
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -622,7 +646,17 @@ ${convHistory}
             )}
             {messages.map((m, i) => (
               <div key={i} className={`cc-chat-msg ${m.role}`}>
-                {m.role === 'assistant' ? <ReactMarkdown>{m.content}</ReactMarkdown> : m.content}
+                {m.role === 'assistant' ? (
+                  <>
+                    <ReactMarkdown>{m.content}</ReactMarkdown>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                      <button className="cc-btn cc-btn-secondary" style={{ padding: '4px 10px', fontSize: 11 }}
+                        onClick={() => navigateTo?.('style-lab', { prompt: m.content.slice(0, 500) })}>
+                        🎨 送到繪圖區
+                      </button>
+                    </div>
+                  </>
+                ) : m.content}
               </div>
             ))}
             {loading && <div className="cc-loading"><div className="cc-spinner" /> AI 思考中...</div>}

@@ -28,11 +28,21 @@ const isOpenAIImageModel = (modelId) => OPENAI_IMAGE_MODELS.some(m => m.id === m
 // 目前可用的生圖模型 (Replicate + Vertex + PiAPI + OpenAI)
 const VALID_IMAGE_MODEL_IDS = ['bytedance/seedream-5-lite', 'bytedance/seedream-4.5', ...VERTEX_IMAGE_MODELS.map(m => m.id), ...PIAPI_IMAGE_MODELS.map(m => m.id), ...OPENAI_IMAGE_MODELS.map(m => m.id)];
 
-export default function StyleLab() {
+export default function StyleLab({ navPayload, onPayloadConsumed }) {
   const { uid } = useAuth();
   const [prompt, setPrompt] = useLocalStorage('styleLab_prompt', '用這隻北極熊的風格畫一隻兔子');
   const [aspectRatio, setAspectRatio] = useLocalStorage('styleLab_aspectRatio', '1:1');
   const [keepPose, setKeepPose] = useLocalStorage('styleLab_keepPose', true);
+
+  // 跨區導航：接收其他區域傳來的 prompt
+  useEffect(() => {
+    if (navPayload?.prompt) {
+      setPrompt(navPayload.prompt);
+      onPayloadConsumed?.();
+      // 滾動到頂部讓使用者看到已填入的 prompt
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [navPayload]);
   const [modelVersion, setModelVersion] = useLocalStorage('styleLab_model', 'bytedance/seedream-5-lite');
   const [referenceImages, setReferenceImages] = useLocalStorage('styleLab_refImgs', []);
   const [targetImage, setTargetImage] = useState(null);
