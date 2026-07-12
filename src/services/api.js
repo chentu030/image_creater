@@ -1111,17 +1111,56 @@ export const chatWithAIAndImages = async (messageHistory, imageDataUrls = [], we
 // 開發環境：走 Vite proxy（/api/claude → api.anthropic.com）
 const isDev = import.meta.env.DEV;
 
-export const chatWithClaude = async (messageHistory, webSearch = true, modelName = 'claude-sonnet-5') => {
+export const chatWithClaude = async (messageHistory, webSearch = true, modelName = 'claude-sonnet-5', imageDataUrls = []) => {
   if (isDev && !CLAUDE_API_KEY) throw new Error('找不到 Claude API Key');
 
   // Anthropic 格式：messages 陣列，role 為 user / assistant
   // 過濾掉空訊息，確保首則為 user
   const messages = messageHistory
     .filter(msg => msg.content && msg.content.trim())
-    .map(msg => ({
-      role: msg.role === 'system' ? 'assistant' : 'user',
-      content: msg.content
-    }));
+    .map(msg => {
+      const role = msg.role === 'system' ? 'assistant' : 'user';
+      // 檢查訊息本身是否帶有圖片（歷史訊息中的圖片）
+      if (msg.images && msg.images.length > 0 && role === 'user') {
+        const contentParts = [];
+        for (const imgUrl of msg.images) {
+          const parsed = dataUrlToInlineData(imgUrl);
+          if (parsed) {
+            contentParts.push({
+              type: 'image',
+              source: { type: 'base64', media_type: parsed.mimeType, data: parsed.data }
+            });
+          }
+        }
+        contentParts.push({ type: 'text', text: msg.content });
+        return { role, content: contentParts };
+      }
+      return { role, content: msg.content };
+    });
+
+  // 如果有額外的 imageDataUrls（當次上傳的圖片），插入到最後一則 user 訊息中
+  if (imageDataUrls.length > 0 && messages.length > 0) {
+    const lastIdx = messages.length - 1;
+    if (messages[lastIdx].role === 'user') {
+      const imageParts = [];
+      for (const imgUrl of imageDataUrls) {
+        const parsed = dataUrlToInlineData(imgUrl);
+        if (parsed) {
+          imageParts.push({
+            type: 'image',
+            source: { type: 'base64', media_type: parsed.mimeType, data: parsed.data }
+          });
+        }
+      }
+      // 將 content 轉為陣列格式（圖片 + 文字）
+      const existingContent = messages[lastIdx].content;
+      if (typeof existingContent === 'string') {
+        messages[lastIdx].content = [...imageParts, { type: 'text', text: existingContent }];
+      } else if (Array.isArray(existingContent)) {
+        messages[lastIdx].content = [...imageParts, ...existingContent];
+      }
+    }
+  }
 
   // Anthropic 要求 messages 第一則必須是 user
   if (messages.length > 0 && messages[0].role !== 'user') {
@@ -1181,16 +1220,41 @@ export const chatWithClaude = async (messageHistory, webSearch = true, modelName
 // --- Grok (xAI Responses API) ---
 // 生產環境：走 Vercel Serverless Function（伺服器端代理）
 // 開發環境：走 Vite proxy（/api/grok → api.x.ai）
-export const chatWithGrok = async (messageHistory, webSearch = true) => {
+export const chatWithGrok = async (messageHistory, webSearch = true, imageDataUrls = []) => {
   if (isDev && !GROK_API_KEY) throw new Error('找不到 Grok API Key');
 
   // xAI Responses API 格式
   const input = messageHistory
     .filter(msg => msg.content && msg.content.trim())
-    .map(msg => ({
-      role: msg.role === 'system' ? 'assistant' : 'user',
-      content: msg.content
-    }));
+    .map(msg => {
+      const role = msg.role === 'system' ? 'assistant' : 'user';
+      // 檢查訊息本身是否帶有圖片（歷史訊息中的圖片）
+      if (msg.images && msg.images.length > 0 && role === 'user') {
+        const contentParts = [];
+        for (const imgUrl of msg.images) {
+          contentParts.push({ type: 'input_image', image_url: imgUrl });
+        }
+        contentParts.push({ type: 'input_text', text: msg.content });
+        return { role, content: contentParts };
+      }
+      return { role, content: msg.content };
+    });
+
+  // 如果有額外的 imageDataUrls（當次上傳的圖片），插入到最後一則 user 訊息中
+  if (imageDataUrls.length > 0 && input.length > 0) {
+    const lastIdx = input.length - 1;
+    if (input[lastIdx].role === 'user') {
+      const imageParts = imageDataUrls.map(imgUrl => ({
+        type: 'input_image', image_url: imgUrl
+      }));
+      const existingContent = input[lastIdx].content;
+      if (typeof existingContent === 'string') {
+        input[lastIdx].content = [...imageParts, { type: 'input_text', text: existingContent }];
+      } else if (Array.isArray(existingContent)) {
+        input[lastIdx].content = [...imageParts, ...existingContent];
+      }
+    }
+  }
 
   // 確保第一則為 user
   if (input.length > 0 && input[0].role !== 'user') {
@@ -1254,13 +1318,13 @@ export const chatWithGrok = async (messageHistory, webSearch = true) => {
 export const chatWithModel = async (modelId, messageHistory, webSearch = true, imageDataUrls = []) => {
   switch (modelId) {
     case 'claude':
-      return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-5');
+      return chatWithClaude(messageHistory, webSearch, 'claude-sonnet-5', imageDataUrls);
     case 'claude-fable':
-      return chatWithClaude(messageHistory, webSearch, 'claude-fable-5');
+      return chatWithClaude(messageHistory, webSearch, 'claude-fable-5', imageDataUrls);
     case 'claude-opus':
-      return chatWithClaude(messageHistory, webSearch, 'claude-opus-4-8');
+      return chatWithClaude(messageHistory, webSearch, 'claude-opus-4-8', imageDataUrls);
     case 'grok':
-      return chatWithGrok(messageHistory, webSearch);
+      return chatWithGrok(messageHistory, webSearch, imageDataUrls);
     case 'gemini':
     default:
       if (imageDataUrls.length > 0) {
