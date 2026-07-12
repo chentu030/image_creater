@@ -48,21 +48,55 @@ function readFileAsDataUrl(file) {
   });
 }
 
-// AI 發想的系統引導提示詞（動態注入角色上下文）
+// AI 發想的系統引導提示詞（動態注入社群創作區上下文）
 function getInspireSystemPrompt() {
-  // 讀取社群創作區的角色設定
-  let charContext = '';
+  let creativeContext = '';
+
   try {
-    const stored = localStorage.getItem('cc_characters');
-    if (stored) {
-      const parsed = JSON.parse(stored);
+    // 1. 角色設定
+    const charStored = localStorage.getItem('cc_characters');
+    if (charStored) {
+      const parsed = JSON.parse(charStored);
       const chars = parsed?.characters || [];
       if (chars.length > 0) {
-        charContext = `\n\n【你的角色宇宙】\n以下是使用者已建立的角色，請在給靈感時優先使用這些角色：\n` +
-          chars.map(c => `- ${c.name} (${c.species}): ${c.personality?.join(', ') || ''}${c.can_speak ? '' : ' [不會說話]'}`).join('\n');
+        creativeContext += `\n\n【角色宇宙】\n以下是使用者已建立的角色，請在給靈感時優先使用這些角色：\n` +
+          chars.map(c => {
+            let desc = `- ${c.name} (${c.species})`;
+            if (c.personality?.length > 0 && c.personality[0] !== '待設定') desc += `：${c.personality.join('、')}`;
+            if (c.catchphrase) desc += ` | 口頭禪：「${c.catchphrase}」`;
+            if (!c.can_speak) desc += ' [不會說話，只用動作表達]';
+            return desc;
+          }).join('\n');
       }
     }
-  } catch { /* ignore */ }
+
+    // 2. 劇情庫（最近 5 則）
+    const storiesStored = localStorage.getItem('cc_stories');
+    if (storiesStored) {
+      const parsed = JSON.parse(storiesStored);
+      const stories = parsed?.stories || [];
+      if (stories.length > 0) {
+        const recent = stories.slice(-5);
+        creativeContext += `\n\n【最近創作的劇情】\n` +
+          recent.map(s => `- 「${s.title}」(${s.type || '獨立'}) — 角色：${(s.characters || []).join('、')}`).join('\n');
+      }
+    }
+
+    // 3. 最近的動圖靈感（從 chatSessions 提取最近 AI 回覆的摘要）
+    const sessionsStored = localStorage.getItem('cc_chatSessions');
+    if (sessionsStored) {
+      const parsed = JSON.parse(sessionsStored);
+      const sessions = parsed?.sessions || [];
+      if (sessions.length > 0) {
+        const lastSession = sessions[sessions.length - 1];
+        const aiMsgs = (lastSession.messages || []).filter(m => m.role === 'assistant');
+        if (aiMsgs.length > 0) {
+          const lastAiReply = aiMsgs[aiMsgs.length - 1].content;
+          creativeContext += `\n\n【最近討論的劇情方向】\n${lastAiReply.slice(0, 300)}...`;
+        }
+      }
+    }
+  } catch { /* ignore parse errors */ }
 
   return `你是一位創意靈感助手。使用者會上傳一張或多張圖片（可能來自同一位繪師或作者），你的任務是：
 
@@ -73,7 +107,7 @@ function getInspireSystemPrompt() {
    - 畫面描述（構圖、角色動作、場景、氛圍）
    - 適合的色彩搭配建議
    - 可延伸的系列方向
-${charContext}
+${creativeContext}
 
 請用繁體中文回覆，語氣輕鬆有趣。`;
 }
