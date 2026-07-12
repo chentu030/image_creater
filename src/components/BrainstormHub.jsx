@@ -129,6 +129,7 @@ export default function BrainstormHub({ navigateTo }) {
   const [chatModel, setChatModel] = useLocalStorage('brainstorm_chatModel', 'gemini');
   const [webSearch, setWebSearch] = useLocalStorage('brainstorm_webSearch', true);
   const [thinkingLevel, setThinkingLevel] = useLocalStorage('brainstorm_thinkingLevel', 'default');
+  const [injectCreativeCtx, setInjectCreativeCtx] = useLocalStorage('brainstorm_injectCtx', true);
   const [mobilePanel, setMobilePanel] = useState('chat'); // 'chat' | 'images' | 'topics'
   const [myArtworks, setMyArtworks] = useLocalStorage('brainstorm_myArtworks', []); // 我的作品圖片
   const [showCreativeInfo, setShowCreativeInfo] = useState(false); // 創作資訊展開
@@ -319,14 +320,17 @@ export default function BrainstormHub({ navigateTo }) {
     setIsLoading(true);
 
     try {
-      // 把創作上下文直接拼到使用者訊息裡
-      const contextPrefix = getInspireSystemPrompt();
-      const enrichedMessages = newMessages.map((msg, idx) => {
-        if (idx === newMessages.length - 1 && msg.role === 'user') {
-          return { ...msg, content: `[系統背景資訊]\n${contextPrefix}\n\n---\n[使用者訊息]\n${msg.content}` };
-        }
-        return msg;
-      });
+      // 如果開啟創作資訊注入，把上下文拼到使用者訊息裡
+      let enrichedMessages = newMessages;
+      if (injectCreativeCtx) {
+        const contextPrefix = getInspireSystemPrompt();
+        enrichedMessages = newMessages.map((msg, idx) => {
+          if (idx === newMessages.length - 1 && msg.role === 'user') {
+            return { ...msg, content: `[系統背景資訊]\n${contextPrefix}\n\n---\n[使用者訊息]\n${msg.content}` };
+          }
+          return msg;
+        });
+      }
       const allImages = [...uploadedImages, ...myArtworks];
       const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages, thinkingLevel);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
@@ -359,15 +363,17 @@ export default function BrainstormHub({ navigateTo }) {
     setIsLoading(true);
 
     try {
-      // 把創作上下文直接拼到訊息裡（確保 AI 一定看到）
-      const contextPrefix = getInspireSystemPrompt();
-      const enrichedMessages = newMessages.map((msg, idx) => {
-        // 只在最新的 user 訊息前面加上系統提示
-        if (idx === newMessages.length - 1 && msg.role === 'user') {
-          return { ...msg, content: `[系統背景資訊]\n${contextPrefix}\n\n---\n[使用者訊息]\n${msg.content}` };
-        }
-        return msg;
-      });
+      // 如果開啟創作資訊注入，把上下文拼到使用者訊息裡
+      let enrichedMessages = newMessages;
+      if (injectCreativeCtx) {
+        const contextPrefix = getInspireSystemPrompt();
+        enrichedMessages = newMessages.map((msg, idx) => {
+          if (idx === newMessages.length - 1 && msg.role === 'user') {
+            return { ...msg, content: `[系統背景資訊]\n${contextPrefix}\n\n---\n[使用者訊息]\n${msg.content}` };
+          }
+          return msg;
+        });
+      }
       // 合併參考圖 + 我的作品圖
       const allImages = [...(uploadedImages.length > 0 ? uploadedImages : []), ...myArtworks];
       const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages, thinkingLevel);
@@ -697,6 +703,13 @@ export default function BrainstormHub({ navigateTo }) {
                   title={webSearch ? '聯網搜尋：已開啟' : '聯網搜尋：已關閉'}
                 >
                   🌐 {webSearch ? 'ON' : 'OFF'}
+                </button>
+                <button
+                  className={`btn-web-search ${injectCreativeCtx ? 'active' : ''}`}
+                  onClick={() => setInjectCreativeCtx(!injectCreativeCtx)}
+                  title={injectCreativeCtx ? '創作資訊注入：已開啟（每次對話都帶角色設定）' : '創作資訊注入：已關閉'}
+                >
+                  📋 {injectCreativeCtx ? 'ON' : 'OFF'}
                 </button>
                 <select
                   className="glass-input chat-model-select"
