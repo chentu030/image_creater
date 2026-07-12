@@ -130,8 +130,11 @@ export default function BrainstormHub({ navigateTo }) {
   const [chatModel, setChatModel] = useLocalStorage('brainstorm_chatModel', 'gemini');
   const [webSearch, setWebSearch] = useLocalStorage('brainstorm_webSearch', true);
   const [mobilePanel, setMobilePanel] = useState('chat'); // 'chat' | 'images' | 'topics'
+  const [myArtworks, setMyArtworks] = useLocalStorage('brainstorm_myArtworks', []); // 我的作品圖片
+  const [showCreativeInfo, setShowCreativeInfo] = useState(false); // 創作資訊展開
 
   const fileInputRef = useRef(null);
+  const artworkFileRef = useRef(null);
   const chatEndRef = useRef(null);
   const nameInputRef = useRef(null);
 
@@ -295,7 +298,7 @@ export default function BrainstormHub({ navigateTo }) {
 
   // ─── AI 發想（用圖片） ───
   const handleInspire = async () => {
-    if (uploadedImages.length === 0 || isLoading) return;
+    if ((uploadedImages.length === 0 && myArtworks.length === 0) || isLoading) return;
 
     // 如果沒有活躍主題，自動建一個
     let topicId = activeTopicId;
@@ -321,7 +324,8 @@ export default function BrainstormHub({ navigateTo }) {
         { role: 'system', content: '好的，我會從圖片中分析風格並延伸發想原創主題，而非照抄。請上傳圖片吧！' },
         ...newMessages
       ];
-      const aiReply = await chatWithModel(chatModel, fullHistory, webSearch, uploadedImages);
+      const allImages = [...uploadedImages, ...myArtworks];
+      const aiReply = await chatWithModel(chatModel, fullHistory, webSearch, allImages);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
     } catch (error) {
       console.error(error);
@@ -358,9 +362,9 @@ export default function BrainstormHub({ navigateTo }) {
         { role: 'system', content: '好的，我了解你的角色和創作方向了！隨時可以聊，我會根據你的角色宇宙給建議。' },
         ...newMessages
       ];
-      // 如果有圖片，用圖片版 API
-      const hasImages = uploadedImages.length > 0;
-      const aiReply = await chatWithModel(chatModel, fullHistory, webSearch, hasImages ? uploadedImages : []);
+      // 合併參考圖 + 我的作品圖
+      const allImages = [...(uploadedImages.length > 0 ? uploadedImages : []), ...myArtworks];
+      const aiReply = await chatWithModel(chatModel, fullHistory, webSearch, allImages);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
     } catch (error) {
       console.error(error);
@@ -561,6 +565,59 @@ export default function BrainstormHub({ navigateTo }) {
                 </div>
               )}
               <div ref={chatEndRef} />
+            </div>
+
+            {/* 我的作品 + 創作資訊快捷區 */}
+            <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* 我的作品圖片預覽 */}
+              {myArtworks.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>🖼️ 我的作品 ({myArtworks.length}):</span>
+                  {myArtworks.map((img, i) => (
+                    <div key={i} style={{ position: 'relative', width: 36, height: 36 }}>
+                      <img src={img} alt="" style={{ width: 36, height: 36, borderRadius: 4, objectFit: 'cover' }} />
+                      <button onClick={() => setMyArtworks(prev => prev.filter((_, j) => j !== i))}
+                        style={{ position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: '50%', background: 'var(--accent-red, #f44)', border: 'none', color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* 創作資訊展開區 */}
+              {showCreativeInfo && (
+                <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 10, fontSize: 12, color: 'var(--text-secondary)', maxHeight: 150, overflow: 'auto', whiteSpace: 'pre-wrap', border: '1px solid var(--border-color)' }}>
+                  {(() => {
+                    const ctx = getInspireSystemPrompt();
+                    const contextStart = ctx.indexOf('【');
+                    return contextStart > -1 ? ctx.slice(contextStart) : 'ℹ️ 尚未設定角色資訊。請先去「社群創作區」設定角色，或上傳你的作品讓 AI 精準分析。';
+                  })()}
+                </div>
+              )}
+              {/* 按鈕列 */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  className={`btn-secondary${showCreativeInfo ? ' active' : ''}`}
+                  style={{ fontSize: 11, padding: '4px 10px' }}
+                  onClick={() => setShowCreativeInfo(v => !v)}
+                >
+                  📋 {showCreativeInfo ? '隱藏創作資訊' : '查看創作資訊'}
+                </button>
+                <input type="file" ref={artworkFileRef} hidden multiple accept="image/*" onChange={async (e) => {
+                  const files = Array.from(e.target.files || []);
+                  for (const file of files) {
+                    const dataUrl = await readFileAsDataUrl(file);
+                    const compressed = await compressImage(dataUrl);
+                    setMyArtworks(prev => [...prev, compressed]);
+                  }
+                  e.target.value = '';
+                }} />
+                <button
+                  className="btn-secondary"
+                  style={{ fontSize: 11, padding: '4px 10px' }}
+                  onClick={() => artworkFileRef.current?.click()}
+                >
+                  🖼️ 上傳我的作品
+                </button>
+              </div>
             </div>
 
             {/* 輸入區 */}
