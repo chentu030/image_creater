@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import Sidebar from './components/Sidebar';
 import StyleLab from './components/StyleLab';
 import BrainstormHub from './components/BrainstormHub';
+import ContentCreator from './components/ContentCreator';
 import AnimationStudio from './components/AnimationStudio';
 import HistoryGallery from './components/HistoryGallery';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -36,6 +37,7 @@ function AppContent() {
         <main className="main-content">
           {activeTab === 'style-lab' && <StyleLab />}
           {activeTab === 'brainstorm' && <BrainstormHub />}
+          {activeTab === 'content-creator' && <ContentCreator />}
           {activeTab === 'animation' && <AnimationStudio />}
           {activeTab === 'history' && <HistoryGallery />}
         </main>
@@ -98,6 +100,7 @@ function AppContent() {
       <main className="main-content">
         {activeTab === 'style-lab' && <StyleLab />}
         {activeTab === 'brainstorm' && <BrainstormHub />}
+        {activeTab === 'content-creator' && <ContentCreator />}
         {activeTab === 'animation' && <AnimationStudio />}
           {activeTab === 'history' && <HistoryGallery />}
       </main>

@@ -453,6 +453,64 @@ export async function deleteRefGroup(uid, groupId) {
   await batch.commit();
 }
 
+// ─── 社群創作區 (Content Creator) ───
+
+// 角色人設
+export async function saveCharactersData(uid, data) {
+  if (!db) return;
+  const docRef = doc(db, getUserPath(uid), 'content-creator', 'characters');
+  await setDoc(docRef, { ...data, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function loadCharactersData(uid) {
+  if (!db) return null;
+  const docRef = doc(db, getUserPath(uid), 'content-creator', 'characters');
+  const snap = await getDoc(docRef);
+  return snap.exists() ? snap.data() : null;
+}
+
+// 劇情庫
+export async function saveStoriesData(uid, data) {
+  if (!db) return;
+  const docRef = doc(db, getUserPath(uid), 'content-creator', 'stories');
+  await setDoc(docRef, { ...data, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function loadStoriesData(uid) {
+  if (!db) return null;
+  const docRef = doc(db, getUserPath(uid), 'content-creator', 'stories');
+  const snap = await getDoc(docRef);
+  return snap.exists() ? snap.data() : null;
+}
+
+// 漫畫劇情聊天記錄
+export async function saveContentChatSessions(uid, sessions) {
+  if (!db) return;
+  const docRef = doc(db, getUserPath(uid), 'content-creator', 'chat-sessions');
+  await setDoc(docRef, { sessions, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function loadContentChatSessions(uid) {
+  if (!db) return null;
+  const docRef = doc(db, getUserPath(uid), 'content-creator', 'chat-sessions');
+  const snap = await getDoc(docRef);
+  return snap.exists() ? snap.data() : null;
+}
+
+// 績效數據（CSV 上傳後的解析結果）
+export async function savePerformanceData(uid, data) {
+  if (!db) return;
+  const docRef = doc(db, getUserPath(uid), 'content-creator', 'performance');
+  await setDoc(docRef, { ...data, uploadedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function loadPerformanceData(uid) {
+  if (!db) return null;
+  const docRef = doc(db, getUserPath(uid), 'content-creator', 'performance');
+  const snap = await getDoc(docRef);
+  return snap.exists() ? snap.data() : null;
+}
+
 // ─── 是否已設定 Firebase ───
 export function isFirebaseConfigured() {
   return hasConfig;

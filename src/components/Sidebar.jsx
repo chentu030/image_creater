@@ -1,11 +1,12 @@
 import React from 'react';
-import { Palette, Lightbulb, Film, FolderClock, Settings, Moon, Sun, LogOut } from 'lucide-react';
+import { Palette, Lightbulb, Film, FolderClock, Settings, Moon, Sun, LogOut, Megaphone } from 'lucide-react';
 import './Sidebar.css';
 
 export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, user, onLogout, isOpen, onToggle }) {
   const navItems = [
     { id: 'style-lab', label: '風格繪圖區', icon: <Palette size={20} /> },
     { id: 'brainstorm', label: '靈感發想區', icon: <Lightbulb size={20} /> },
+    { id: 'content-creator', label: '社群創作區', icon: <Megaphone size={20} /> },
     { id: 'animation', label: '動畫生成區', icon: <Film size={20} /> },
     { id: 'history', label: '生成歷史', icon: <FolderClock size={20} /> },
   ];
