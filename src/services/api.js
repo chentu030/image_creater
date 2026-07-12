@@ -1418,6 +1418,54 @@ export const chatWithGrok = async (messageHistory, webSearch = true, imageDataUr
   return { role: 'system', content: replyText, searchQueries, searchSources };
 };
 
+// --- 用 Gemini 整理對話摘要到全局記憶 ---
+export const summarizeToMemory = async (text, mode = 'single') => {
+  const apiKey = getNextVertexKey();
+  if (!apiKey) throw new Error('找不到 Vertex AI API Key');
+
+  const prompt = mode === 'topic'
+    ? `你是記憶整理助手。以下是一段完整的對話記錄，請精簡整理成「重點筆記」，格式簡潔、條列式，保留：
+- 討論的主要結論和決定
+- 重要的創意方向或靈感
+- 可以後續延伸的想法
+- 任何值得記住的細節
+
+不要寫「以下是摘要」之類的開頭，直接給重點內容。控制在 200 字以內。
+
+對話記錄：
+${text}`
+    : `你是記憶整理助手。以下是一則 AI 回覆，請精簡整理成 1~3 句重點筆記，保留核心想法和可延伸的方向。不要寫開頭語，直接給重點。控制在 100 字以內。
+
+內容：
+${text}`;
+
+  const url = `/api/vertex/publishers/google/models/gemini-3-flash-preview:generateContent`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'X-Goog-Api-Key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || '摘要生成失敗');
+  }
+
+  const data = await response.json();
+  const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!summary.trim()) throw new Error('摘要結果為空');
+
+  // 追加到全局記憶
+  const existing = localStorage.getItem('ai_global_memory') || '';
+  const timestamp = new Date().toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const newEntry = `\n\n--- [${timestamp} 整理] ---\n${summary.trim()}`;
+  localStorage.setItem('ai_global_memory', existing + newEntry);
+
+  return summary.trim();
+};
+
 // --- 統一路由：根據 modelId 分派到對應 API ---
 export const chatWithModel = async (modelId, messageHistory, webSearch = true, imageDataUrls = []) => {
   // 全局記憶注入：自動讀取 localStorage 的記憶檔，拼到最後一則 user 訊息

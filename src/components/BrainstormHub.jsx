@@ -6,7 +6,7 @@ import {
   BookOpen, Bookmark, Trash2, Edit3, Check, GitBranch, Upload
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { chatWithModel, CHAT_MODELS } from '../services/api';
+import { chatWithModel, CHAT_MODELS, summarizeToMemory } from '../services/api';
 import {
   saveBrainstormTopics,
   loadBrainstormTopics,
@@ -131,6 +131,7 @@ export default function BrainstormHub({ navigateTo }) {
   const [mobilePanel, setMobilePanel] = useState('chat'); // 'chat' | 'images' | 'topics'
   const [myArtworks, setMyArtworks] = useLocalStorage('brainstorm_myArtworks', []); // 我的作品圖片
   const [showCreativeInfo, setShowCreativeInfo] = useState(false); // 創作資訊展開
+  const [summarizing, setSummarizing] = useState(null); // 'topic' | idx | null
 
   const fileInputRef = useRef(null);
   const artworkFileRef = useRef(null);
@@ -510,6 +511,27 @@ export default function BrainstormHub({ navigateTo }) {
                 >
                   <GitBranch size={14} /> 續集
                 </button>
+                <button
+                  className="topic-action-btn"
+                  disabled={summarizing === 'topic'}
+                  title="用 Gemini 整理整個主題對話為摘要，存入全局記憶"
+                  onClick={async () => {
+                    setSummarizing('topic');
+                    try {
+                      const allText = messages
+                        .filter(m => m.content)
+                        .map(m => `${m.role === 'user' ? '使用者' : 'AI'}: ${m.content}`)
+                        .join('\n');
+                      await summarizeToMemory(allText, 'topic');
+                      alert('✅ 已整理並存入全局記憶！');
+                    } catch (e) {
+                      alert('❌ ' + e.message);
+                    }
+                    setSummarizing(null);
+                  }}
+                >
+                  {summarizing === 'topic' ? <Loader2 size={14} className="animate-spin" /> : '📌'} 整理到記憶
+                </button>
               </div>
             )}
           </div>
@@ -568,6 +590,20 @@ export default function BrainstormHub({ navigateTo }) {
                             navigateTo?.('content-creator');
                           }}>
                           📝 送到劇情討論
+                        </button>
+                        <button className="btn-secondary transfer-prompt-btn"
+                          disabled={summarizing === idx}
+                          onClick={async () => {
+                            setSummarizing(idx);
+                            try {
+                              await summarizeToMemory(msg.content, 'single');
+                              alert('✅ 已存入全局記憶！');
+                            } catch (e) {
+                              alert('❌ ' + e.message);
+                            }
+                            setSummarizing(null);
+                          }}>
+                          {summarizing === idx ? <Loader2 size={14} className="animate-spin" /> : '📌'} 存入記憶
                         </button>
                       </div>
                     )}
