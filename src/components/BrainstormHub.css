@@ -662,3 +662,28 @@
   }
 }
 
+/* 訊息複製按鈕 */
+.msg-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s;
+}
+.chat-message:hover .msg-copy-btn {
+  opacity: 0.6;
+}
+.msg-copy-btn:hover {
+  opacity: 1 !important;
+  color: var(--accent-color);
+  border-color: var(--border-color);
+  background: rgba(255,255,255,0.04);
+}

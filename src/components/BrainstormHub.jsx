@@ -3,10 +3,10 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useAuth } from '../hooks/useAuth';
 import {
   Send, Bot, User, Sparkles, Loader2, ImagePlus, X, Plus,
-  BookOpen, Bookmark, Trash2, Edit3, Check, GitBranch, Upload
+  BookOpen, Bookmark, Trash2, Edit3, Check, GitBranch, Upload, Copy, Download
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { chatWithModel, CHAT_MODELS, summarizeToMemory } from '../services/api';
+import { chatWithModel, CHAT_MODELS, summarizeToMemory, autoNameTopic } from '../services/api';
 import {
   saveBrainstormTopics,
   loadBrainstormTopics,
@@ -134,6 +134,7 @@ export default function BrainstormHub({ navigateTo }) {
   const [myArtworks, setMyArtworks] = useLocalStorage('brainstorm_myArtworks', []); // 我的作品圖片
   const [showCreativeInfo, setShowCreativeInfo] = useState(false); // 創作資訊展開
   const [summarizing, setSummarizing] = useState(null); // 'topic' | idx | null
+  const [copiedIdx, setCopiedIdx] = useState(null); // 複製狀態
 
   const fileInputRef = useRef(null);
   const artworkFileRef = useRef(null);
@@ -334,6 +335,14 @@ export default function BrainstormHub({ navigateTo }) {
       const allImages = [...uploadedImages, ...myArtworks];
       const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages, thinkingLevel);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
+      // 自動命名：僅當主題名稱是預設值時觸發
+      const topic = topics.find(t => t.id === topicId);
+      if (topic && (topic.name === 'AI 圖片靈感發想' || topic.name === '新對話' || topic.name.startsWith('續集'))) {
+        const userContent = newMessages.filter(m => m.role === 'user').pop()?.content || '';
+        autoNameTopic(userContent, aiReply.content || '').then(name => {
+          if (name) updateTopic(topicId, { name });
+        });
+      }
     } catch (error) {
       console.error(error);
       updateTopic(topicId, {
@@ -378,6 +387,14 @@ export default function BrainstormHub({ navigateTo }) {
       const allImages = [...(uploadedImages.length > 0 ? uploadedImages : []), ...myArtworks];
       const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages, thinkingLevel);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
+      // 自動命名
+      const topic = topics.find(t => t.id === topicId);
+      if (topic && (topic.name === 'AI 圖片靈感發想' || topic.name === '新對話' || topic.name.startsWith('續集'))) {
+        const userContent = newMessages.filter(m => m.role === 'user').pop()?.content || '';
+        autoNameTopic(userContent, aiReply.content || '').then(name => {
+          if (name) updateTopic(topicId, { name });
+        });
+      }
     } catch (error) {
       console.error(error);
       updateTopic(topicId, {
@@ -539,6 +556,25 @@ export default function BrainstormHub({ navigateTo }) {
                 >
                   {summarizing === 'topic' ? <Loader2 size={14} className="animate-spin" /> : '📌'} 整理到記憶
                 </button>
+                <button
+                  className="topic-action-btn"
+                  title="匯出整個主題對話為 .txt 檔案"
+                  onClick={() => {
+                    const text = messages
+                      .filter(m => m.content)
+                      .map(m => `[${m.role === 'user' ? '使用者' : 'AI'}]\n${m.content}`)
+                      .join('\n\n' + '='.repeat(40) + '\n\n');
+                    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${activeTopic?.name || '對話'}_${new Date().toLocaleDateString('zh-TW')}.txt`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Download size={14} /> 匯出 txt
+                </button>
               </div>
             )}
           </div>
@@ -568,6 +604,18 @@ export default function BrainstormHub({ navigateTo }) {
                     <div className="markdown-body">
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
+                    {/* 複製按鈕 */}
+                    <button
+                      className="msg-copy-btn"
+                      title="複製此訊息"
+                      onClick={() => {
+                        navigator.clipboard.writeText(msg.content);
+                        setCopiedIdx(idx);
+                        setTimeout(() => setCopiedIdx(null), 1500);
+                      }}
+                    >
+                      {copiedIdx === idx ? <><Check size={12} /> 已複製</> : <><Copy size={12} /> 複製</>}
+                    </button>
                     {/* 搜尋關鍵字展示 */}
                     {msg.searchQueries && msg.searchQueries.length > 0 && (
                       <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, fontSize: 11, color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}>

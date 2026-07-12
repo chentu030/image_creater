@@ -1490,6 +1490,35 @@ ${text}`;
   return summary.trim();
 };
 
+// --- 用 Gemini 2.5 Flash 自動命名主題 ---
+export const autoNameTopic = async (userMsg, aiReply) => {
+  const apiKey = getNextVertexKey();
+  if (!apiKey) return null;
+
+  const prompt = `根據以下對話內容，生成一個簡短的主題標題（6字以內，不要加標點符號，不要加引號）。直接回覆標題文字即可。
+
+使用者：${userMsg.slice(0, 200)}
+AI：${aiReply.slice(0, 300)}`;
+
+  try {
+    const url = `/api/vertex/publishers/google/models/gemini-2.5-flash:generateContent`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'X-Goog-Api-Key': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { thinkingConfig: { thinkingBudget: 0 } }
+      })
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const name = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    return name && name.length <= 20 ? name : null;
+  } catch {
+    return null;
+  }
+};
+
 // --- 統一路由：根據 modelId 分派到對應 API ---
 export const chatWithModel = async (modelId, messageHistory, webSearch = true, imageDataUrls = [], thinkingLevel = 'default') => {
   // 全局記憶注入：自動讀取 localStorage 的記憶檔，拼到最後一則 user 訊息
