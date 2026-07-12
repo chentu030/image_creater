@@ -50,64 +50,63 @@ function readFileAsDataUrl(file) {
 
 // AI 發想的系統引導提示詞（動態注入社群創作區上下文）
 function getInspireSystemPrompt() {
-  let creativeContext = '';
+  // 預設角色資料（保底，即使 localStorage 為空也有）
+  const FALLBACK_CHARS = [
+    { name: '熊賀', species: '北極熊', personality: ['可愛', '小賤賤', '淘氣', '調皮搗蛋'], can_speak: false, catchphrase: '(透過表情和動作表達，不說話)', backstory: '看起來超可愛但很淘氣的北極熊，用各種小動作逗弄其他角色' },
+    { name: '小豬', species: '豬', personality: ['呆萌', '憨厚', '單純'], can_speak: true, catchphrase: '欸？真的嗎？', backstory: '思想單純的小豬，常被北極熊捉弄但還是很開心' },
+    { name: '鯨鯨', species: '虎鯨', personality: ['溫柔', '愛操心', '有點嘮叨'], can_speak: true, catchphrase: '真是的～你們這些小傢伙！', backstory: '媽媽擔當，照顧大家' },
+    { name: '唉芽鴨', species: '鴨子', personality: ['神經質', '易受驚', '敏感'], can_speak: false, catchphrase: '嘎！', backstory: '膽小但內心堅強的小鴨' },
+    { name: '毛毛', species: '垂耳兔', personality: ['超級愛乾淨', '完美主義', '容易抓狂'], can_speak: false, catchphrase: '(生氣時耳朵會一抖一抖的)', backstory: '吐槽擔當兼生活管家' },
+  ];
 
+  // 嘗試從 localStorage 讀取自訂角色（有就覆蓋預設）
+  let chars = FALLBACK_CHARS;
   try {
-    // 1. 角色設定
-    const charStored = localStorage.getItem('cc_characters');
-    if (charStored) {
-      const parsed = JSON.parse(charStored);
-      const chars = parsed?.characters || [];
-      if (chars.length > 0) {
-        creativeContext += `\n\n【角色宇宙】\n以下是使用者已建立的角色，請在給靈感時優先使用這些角色：\n` +
-          chars.map(c => {
-            let desc = `- ${c.name} (${c.species})`;
-            if (c.personality?.length > 0 && c.personality[0] !== '待設定') desc += `：${c.personality.join('、')}`;
-            if (c.catchphrase) desc += ` | 口頭禪：「${c.catchphrase}」`;
-            if (!c.can_speak) desc += ' [不會說話，只用動作表達]';
-            return desc;
-          }).join('\n');
-      }
+    const stored = localStorage.getItem('cc_characters');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed?.characters?.length > 0) chars = parsed.characters;
     }
+  } catch { /* use fallback */ }
 
-    // 2. 劇情庫（最近 5 則）
-    const storiesStored = localStorage.getItem('cc_stories');
-    if (storiesStored) {
-      const parsed = JSON.parse(storiesStored);
+  // 組合角色描述
+  const charDesc = chars.map(c => {
+    let d = `- ${c.name} (${c.species})：${(c.personality || []).join('、')}`;
+    if (c.catchphrase) d += ` | 口頭禪：「${c.catchphrase}」`;
+    if (!c.can_speak) d += ' [不會說話，只用動作表達]';
+    if (c.backstory) d += `\n  背景：${c.backstory}`;
+    return d;
+  }).join('\n');
+
+  // 劇情庫（可選）
+  let storyDesc = '';
+  try {
+    const stored = localStorage.getItem('cc_stories');
+    if (stored) {
+      const parsed = JSON.parse(stored);
       const stories = parsed?.stories || [];
       if (stories.length > 0) {
-        const recent = stories.slice(-5);
-        creativeContext += `\n\n【最近創作的劇情】\n` +
-          recent.map(s => `- 「${s.title}」(${s.type || '獨立'}) — 角色：${(s.characters || []).join('、')}`).join('\n');
+        storyDesc = '\n\n【最近創作的劇情】\n' +
+          stories.slice(-5).map(s => `- 「${s.title}」(${s.type || '獨立'}) — 角色：${(s.characters || []).join('、')}`).join('\n');
       }
     }
+  } catch { /* ignore */ }
 
-    // 3. 最近的動圖靈感（從 chatSessions 提取最近 AI 回覆的摘要）
-    const sessionsStored = localStorage.getItem('cc_chatSessions');
-    if (sessionsStored) {
-      const parsed = JSON.parse(sessionsStored);
-      const sessions = parsed?.sessions || [];
-      if (sessions.length > 0) {
-        const lastSession = sessions[sessions.length - 1];
-        const aiMsgs = (lastSession.messages || []).filter(m => m.role === 'assistant');
-        if (aiMsgs.length > 0) {
-          const lastAiReply = aiMsgs[aiMsgs.length - 1].content;
-          creativeContext += `\n\n【最近討論的劇情方向】\n${lastAiReply.slice(0, 300)}...`;
-        }
-      }
-    }
-  } catch { /* ignore parse errors */ }
+  return `你是一位創意靈感助手，專門協助一位創作可愛動物角色動圖和漫畫的創作者。
 
-  return `你是一位創意靈感助手。使用者會上傳一張或多張圖片（可能來自同一位繪師或作者），你的任務是：
+【重要：你必須知道的創作者背景資訊】
+這位創作者專門畫「可愛動物」風格的作品，包括動圖 (GIF)、LINE 貼圖、Threads 社群內容等。
+風格參考：吉伊卡哇、貓貓蟲咖波（彈彈 QQ、軟萌可愛風格）。
 
-1. **分析圖片的視覺風格與內容特色**：觀察構圖、色彩、氛圍、角色特點、背景元素等
-2. **以此為靈感，延伸發想新的創作主題**：不要照抄圖片內容，而是從中汲取元素來提出原創的繪圖主題
-3. 提出 3~5 個具體的主題方向，每個主題包含：
-   - 主題名稱
-   - 畫面描述（構圖、角色動作、場景、氛圍）
-   - 適合的色彩搭配建議
-   - 可延伸的系列方向
-${creativeContext}
+【角色宇宙 — 創作者已建立的角色】
+${charDesc}
+${storyDesc}
+
+【你的任務】
+1. 如果使用者上傳圖片：分析圖片風格，延伸發想新的創作主題（不要照抄）
+2. 提出 3~5 個具體的主題方向，每個包含：主題名稱、畫面描述、色彩建議、可延伸系列
+3. 請優先使用上面列出的角色來發想
+4. 如果使用者問你是否知道他畫什麼：回答你知道他畫可愛動物角色，並列出你知道的角色
 
 請用繁體中文回覆，語氣輕鬆有趣。`;
 }
@@ -318,14 +317,16 @@ export default function BrainstormHub({ navigateTo }) {
     setIsLoading(true);
 
     try {
-      // 組合完整訊息歷史（含系統引導）
-      const fullHistory = [
-        { role: 'user', content: getInspireSystemPrompt() },
-        { role: 'system', content: '好的，我會從圖片中分析風格並延伸發想原創主題，而非照抄。請上傳圖片吧！' },
-        ...newMessages
-      ];
+      // 把創作上下文直接拼到使用者訊息裡
+      const contextPrefix = getInspireSystemPrompt();
+      const enrichedMessages = newMessages.map((msg, idx) => {
+        if (idx === newMessages.length - 1 && msg.role === 'user') {
+          return { ...msg, content: `[系統背景資訊]\n${contextPrefix}\n\n---\n[使用者訊息]\n${msg.content}` };
+        }
+        return msg;
+      });
       const allImages = [...uploadedImages, ...myArtworks];
-      const aiReply = await chatWithModel(chatModel, fullHistory, webSearch, allImages);
+      const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
     } catch (error) {
       console.error(error);
@@ -356,15 +357,18 @@ export default function BrainstormHub({ navigateTo }) {
     setIsLoading(true);
 
     try {
-      // 注入創作上下文（角色、劇情、最近討論），讓 AI 了解使用者的創作世界
-      const fullHistory = [
-        { role: 'user', content: getInspireSystemPrompt() },
-        { role: 'system', content: '好的，我了解你的角色和創作方向了！隨時可以聊，我會根據你的角色宇宙給建議。' },
-        ...newMessages
-      ];
+      // 把創作上下文直接拼到訊息裡（確保 AI 一定看到）
+      const contextPrefix = getInspireSystemPrompt();
+      const enrichedMessages = newMessages.map((msg, idx) => {
+        // 只在最新的 user 訊息前面加上系統提示
+        if (idx === newMessages.length - 1 && msg.role === 'user') {
+          return { ...msg, content: `[系統背景資訊]\n${contextPrefix}\n\n---\n[使用者訊息]\n${msg.content}` };
+        }
+        return msg;
+      });
       // 合併參考圖 + 我的作品圖
       const allImages = [...(uploadedImages.length > 0 ? uploadedImages : []), ...myArtworks];
-      const aiReply = await chatWithModel(chatModel, fullHistory, webSearch, allImages);
+      const aiReply = await chatWithModel(chatModel, enrichedMessages, webSearch, allImages);
       updateTopic(topicId, { messages: [...newMessages, aiReply] });
     } catch (error) {
       console.error(error);
