@@ -5,14 +5,30 @@
 
 const REPLICATE_API_KEY = import.meta.env.VITE_REPLICATE_API_KEY;
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const VERTEX_KEYS = import.meta.env.VITE_VERTEX_API_KEYS?.split(',') || [];
+// 格式：key|gcpProjectId（逗號分隔）。Veo 必須帶該金鑰所屬 GCP 專案，走 Vertex 區域端點。
+const VERTEX_KEY_ENTRIES = (import.meta.env.VITE_VERTEX_API_KEYS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+  .map(entry => {
+    const [key, projectId] = entry.split('|').map(x => (x || '').trim());
+    return { key, projectId };
+  })
+  .filter(e => e.key);
 let vertexKeyIndex = 0;
 
-function getNextVertexKey() {
-  if (VERTEX_KEYS.length === 0) return '';
-  const key = VERTEX_KEYS[vertexKeyIndex];
-  vertexKeyIndex = (vertexKeyIndex + 1) % VERTEX_KEYS.length;
-  return key;
+function getNextVertexEntry({ requireProject = false } = {}) {
+  const pool = requireProject
+    ? VERTEX_KEY_ENTRIES.filter(e => e.projectId)
+    : VERTEX_KEY_ENTRIES;
+  if (pool.length === 0) return { key: '', projectId: '' };
+  const entry = pool[vertexKeyIndex % pool.length];
+  vertexKeyIndex = (vertexKeyIndex + 1) % pool.length;
+  return entry;
+}
+
+function getNextVertexKey(opts) {
+  return getNextVertexEntry({ requireProject: true, ...opts }).key;
 }
 
 // 輔助函式：輪詢 Replicate 狀態
@@ -954,12 +970,14 @@ export const generateImageVertex = async (modelId, prompt, referenceImages = [],
 //   完成後影片以 base64 (response.videos[].bytesBase64Encoded) 回傳
 //
 // 注意：
-//   - Veo 的 predictLongRunning 必須走 v1 + 含 project/location 的完整資源路徑，
-//     用 express 全域路徑 (無 project) 會回 RESOURCE_PROJECT_INVALID。
-//   - AQ. 金鑰綁定的專案為 858120002417；GA 模型名稱為 *-generate-001，
-//     preview 版 (*-generate-preview) 已下架會回 404。
+//   - Veo 的 predictLongRunning 必須走 Vertex v1 區域端點
+//     us-central1-aiplatform.googleapis.com + 含 project/location 的完整資源路徑。
+//     全域 aiplatform.googleapis.com 會 404；express 無 project 會 RESOURCE_PROJECT_INVALID。
+//   - 不准走 generativelanguage（Gemini 通道），AQ. 金鑰要打 Vertex 才能用 GCP 抵免額。
+//   - 每把金鑰綁不同 GCP 專案（.env 裡 key|projectId）；硬編碼單一專案會 BILLING_DISABLED / 403。
+//   - GA 模型名稱為 *-generate-001，preview 版已下架會回 404。
+//   - 路徑用 /predictLongRunning（不要用冒號），由 proxy 轉成 Google 的 :method，避免 Vercel 502。
 // ============================================================
-const VERTEX_PROJECT_ID = '858120002417';
 const VERTEX_LOCATION = 'us-central1';
 
 export const VERTEX_VIDEO_MODELS = [
@@ -968,8 +986,15 @@ export const VERTEX_VIDEO_MODELS = [
   { id: 'veo-3.1-lite', name: 'Veo 3.1 Lite (Vertex)', desc: 'Google Veo 3.1 輕量', model: 'veo-3.1-lite-generate-001' },
 ];
 
-const vertexVeoBase = (modelName) =>
-  `/api/vertex-v1/projects/${VERTEX_PROJECT_ID}/locations/${VERTEX_LOCATION}/publishers/google/models/${modelName}`;
+const vertexVeoUrl = (projectId, modelName, method) =>
+  `/api/vertex-v1/projects/${projectId}/locations/${VERTEX_LOCATION}/publishers/google/models/${modelName}/${method}`;
+
+const VEO_DURATIONS = [4, 6, 8];
+function snapVeoDuration(duration) {
+  const n = parseInt(duration, 10);
+  if (!Number.isFinite(n)) return 8;
+  return VEO_DURATIONS.reduce((best, d) => (Math.abs(d - n) < Math.abs(best - n) ? d : best));
+}
 
 // --- Vertex Veo 生影片 ---
 // imageBase64: 首幀圖片 (data URL，選填 → 有則為圖生影片，無則為文生影片)
@@ -978,8 +1003,8 @@ const vertexVeoBase = (modelName) =>
 export const generateVideoVertexVeo = async (modelId, prompt, imageBase64 = null, duration = 8, aspectRatio = '16:9') => {
   const modelDef = VERTEX_VIDEO_MODELS.find(m => m.id === modelId);
   const modelName = modelDef?.model || modelId;
-  const apiKey = getNextVertexKey();
-  if (!apiKey) throw new Error('找不到 Vertex AI API Key');
+  const { key: apiKey, projectId } = getNextVertexEntry({ requireProject: true });
+  if (!apiKey || !projectId) throw new Error('找不到可用的 Vertex AI API Key（Veo 需要綁定 GCP 專案的金鑰）');
   if (!prompt || !prompt.trim()) throw new Error('請輸入提示詞 (prompt) 描述想要的影片');
 
   const instance = { prompt };
@@ -990,14 +1015,14 @@ export const generateVideoVertexVeo = async (modelId, prompt, imageBase64 = null
 
   const parameters = {
     aspectRatio,
-    durationSeconds: Math.min(8, Math.max(4, parseInt(duration, 10) || 8)),
+    durationSeconds: snapVeoDuration(duration),
     sampleCount: 1,
     generateAudio: true,
     resolution: '720p',
   };
 
-  // 1) 啟動長時任務（Veo 需走 v1 + 含 project/location 的完整資源路徑）
-  const startRes = await fetch(`${vertexVeoBase(modelName)}:predictLongRunning`, {
+  // 1) 啟動長時任務（Vertex 區域 v1 + 該金鑰所屬 GCP 專案）
+  const startRes = await fetch(vertexVeoUrl(projectId, modelName, 'predictLongRunning'), {
     method: 'POST',
     headers: { 'X-Goog-Api-Key': apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify({ instances: [instance], parameters })
@@ -1014,7 +1039,7 @@ export const generateVideoVertexVeo = async (modelId, prompt, imageBase64 = null
   let finalOp = null;
   while (true) {
     await new Promise(r => setTimeout(r, 8000));
-    const pollRes = await fetch(`${vertexVeoBase(modelName)}:fetchPredictOperation`, {
+    const pollRes = await fetch(vertexVeoUrl(projectId, modelName, 'fetchPredictOperation'), {
       method: 'POST',
       headers: { 'X-Goog-Api-Key': apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({ operationName: opName })

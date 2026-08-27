@@ -18,6 +18,9 @@ const needsPrompt = (modelId) => isPiAPIModel(modelId) || isKieModel(modelId) ||
 
 // 目前可用的動畫模型 (kie.ai + Replicate + PiAPI + Vertex Veo)
 const VALID_MODEL_IDS = ['tooncrafter', 'wan2.7', ...KIE_VIDEO_MODELS.map(m => m.id), ...PIAPI_MODELS.map(m => m.id), ...VERTEX_VIDEO_MODELS.map(m => m.id)];
+const VEO_DURATION_OPTIONS = [4, 6, 8];
+const snapVeoDuration = (n) =>
+  VEO_DURATION_OPTIONS.reduce((best, d) => (Math.abs(d - n) < Math.abs(best - n) ? d : best));
 
 export default function AnimationStudio() {
   const { uid } = useAuth();
@@ -210,12 +213,17 @@ export default function AnimationStudio() {
 
             {needsPrompt(model) ? (
               <div className="input-group">
-                <label>影片長度 (秒): {duration}s</label>
+                <label>
+                  影片長度 (秒): {isVeoModel(model) ? snapVeoDuration(duration) : duration}s
+                  {isVeoModel(model) ? '（Veo 僅 4 / 6 / 8）' : ''}
+                </label>
                 <input
                   type="range"
-                  min="4" max="15"
-                  value={duration}
-                  onChange={e => setDuration(parseInt(e.target.value))}
+                  min="4"
+                  max={isVeoModel(model) ? 8 : 15}
+                  step={isVeoModel(model) ? 2 : 1}
+                  value={isVeoModel(model) ? snapVeoDuration(duration) : duration}
+                  onChange={e => setDuration(parseInt(e.target.value, 10))}
                   className="range-slider"
                 />
               </div>

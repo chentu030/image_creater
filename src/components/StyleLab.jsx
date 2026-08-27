@@ -198,21 +198,14 @@ export default function StyleLab({ navPayload, onPayloadConsumed }) {
   }, [modelVersion, setModelVersion]);
 
   useEffect(() => {
-    // 取得本地繪圖風格資料夾的圖片
     // 開發環境走 Vite 中間件；Vercel 生產環境走 public/style-images/manifest.json
-    fetch('/api/local-images')
-      .then(res => {
-        if (!res.ok) throw new Error('not available');
-        return res.json();
-      })
-      .then(data => setLocalImages(data))
-      .catch(() => {
-        // Fallback: 從 public 靜態清單讀取
-        fetch('/style-images/manifest.json')
-          .then(res => res.json())
-          .then(data => setLocalImages(data))
-          .catch(err => console.error('無法讀取本地圖片:', err));
-      });
+    const load = import.meta.env.DEV
+      ? fetch('/api/local-images').then(res => {
+          if (!res.ok) throw new Error('not available');
+          return res.json();
+        })
+      : fetch('/style-images/manifest.json').then(res => res.json());
+    load.then(data => setLocalImages(data)).catch(err => console.error('無法讀取本地圖片:', err));
   }, []);
 
   const handleGenerate = async () => {

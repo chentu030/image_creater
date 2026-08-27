@@ -5,10 +5,6 @@
       "destination": "https://api.replicate.com/v1/:path*"
     },
     {
-      "source": "/api/vertex-v1/:path*",
-      "destination": "https://aiplatform.googleapis.com/v1/:path*"
-    },
-    {
       "source": "/api/vertex/:path*",
       "destination": "https://aiplatform.googleapis.com/v1beta1/:path*"
     },

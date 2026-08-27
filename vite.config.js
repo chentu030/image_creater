@@ -75,6 +75,41 @@ export default defineConfig({
           }
         });
         
+        // Vertex Veo v1 區域端點代理（與 Vercel serverless 相同轉換）
+        server.middlewares.use('/api/vertex-v1', (req, res, next) => {
+          if (req.method !== 'POST') {
+            next();
+            return;
+          }
+          const chunks = [];
+          req.on('data', chunk => chunks.push(chunk));
+          req.on('end', async () => {
+            try {
+              const googlePath = String(req.url || '/')
+                .split('?')[0]
+                .replace(/\/(predictLongRunning|fetchPredictOperation)$/, ':$1');
+              const target = `https://us-central1-aiplatform.googleapis.com/v1${googlePath.startsWith('/') ? googlePath : '/' + googlePath}`;
+              const response = await fetch(target, {
+                method: 'POST',
+                headers: {
+                  'X-Goog-Api-Key': req.headers['x-goog-api-key'] || '',
+                  'Content-Type': req.headers['content-type'] || 'application/json',
+                },
+                body: Buffer.concat(chunks),
+              });
+              const text = await response.text();
+              res.statusCode = response.status;
+              res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
+              res.end(text);
+            } catch (e) {
+              console.error('Vertex v1 proxy error:', e);
+              res.statusCode = 502;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: { message: 'Vertex proxy failed: ' + e.message } }));
+            }
+          });
+        });
+
         // 靜態檔案路由：提供圖片本身
         server.middlewares.use('/local-images', (req, res, next) => {
           const file = decodeURIComponent(req.url.replace(/^\//, '').split('?')[0]);
@@ -101,13 +136,8 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/replicate/, '')
       },
-      // Vertex v1 通道 (Veo 生影片的 predictLongRunning 需走 v1，否則會 RESOURCE_PROJECT_INVALID)
-      // 注意：必須放在 /api/vertex 之前（因為 /api/vertex 是其前綴）
-      '/api/vertex-v1': {
-        target: 'https://aiplatform.googleapis.com/v1',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/vertex-v1/, '')
-      },
+      // Vertex express / Gemini 生圖與聊天（v1beta1，無 project 路徑）
+      // 注意：必須放在任何 /api/vertex-v1 之後；Veo 由上面的 middleware 處理
       '/api/vertex': {
         target: 'https://aiplatform.googleapis.com/v1beta1',
         changeOrigin: true,
